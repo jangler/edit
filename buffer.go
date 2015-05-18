@@ -58,6 +58,29 @@ func (b *Buffer) clip(index Index) Index {
 	return index
 }
 
+// Delete removes the text in the buffer between begin and end.
+func (b *Buffer) Delete(begin, end Index) {
+	<-b.unlock
+	if end.Less(begin) || end == begin {
+		b.unlock <- 1
+		return
+	}
+	begin, end = b.clip(begin), b.clip(end)
+	elem := b.getLine(begin.Line)
+	if n := end.Line - begin.Line; n == 0 {
+		elem.Value = elem.Value.(string)[:begin.Char] +
+			elem.Value.(string)[end.Char:]
+	} else {
+		firstLine := elem.Value.(string)
+		for i := 0; i < n; i++ {
+			elem = elem.Next()
+			b.lines.Remove(elem.Prev())
+		}
+		elem.Value = firstLine[:begin.Char] + elem.Value.(string)[end.Char:]
+	}
+	b.unlock <- 1
+}
+
 // End returns an Index after the last character in the Buffer.
 func (b *Buffer) End() Index {
 	<-b.unlock
