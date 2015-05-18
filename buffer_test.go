@@ -32,8 +32,18 @@ func TestBuffer(t *testing.T) {
 		t.Errorf("Get returned %#v; want %#v", got, want)
 	}
 
-	b.Insert(Index{0, 0}, "\n") // Index line too low
-	want, got = "\nhello, world!\nhello again!", b.Get(Index{1, 0}, b.End())
+	b.Insert(Index{0, 0}, "\n\n") // Index line too low
+	want, got = "\n\nhello, world!\nhello again!", b.Get(Index{1, 0}, b.End())
+	if want != got {
+		t.Errorf("Get returned %#v; want %#v", got, want)
+	}
+
+	// Additional Get tests for getLine
+	want, got = "\nhello, world!\nhello again!", b.Get(Index{2, 0}, b.End())
+	if want != got {
+		t.Errorf("Get returned %#v; want %#v", got, want)
+	}
+	want, got = "hello, world!\nhello again!", b.Get(Index{3, 0}, b.End())
 	if want != got {
 		t.Errorf("Get returned %#v; want %#v", got, want)
 	}
@@ -73,8 +83,9 @@ func randBuffer(numLines int) *Buffer {
 // Average time to insert a 0-80 character string into a 2000-line buffer at a
 // random position.
 //
-// 2014/05/18 15:48 - 61000 ns/op
-// 2014/05/18 17:17 - 19000 ns/op
+// 2015/05/18 15:48 - 61000 ns/op - red-black tree
+// 2015/05/18 17:17 - 19000 ns/op - linked list
+// 2015/05/18 17:30 - 10000 ns/op - faster getLine
 func BenchmarkBufferInsert(b *testing.B) {
 	insertions := make([]insertion, b.N)
 	for i := 0; i < b.N; i++ {
@@ -100,8 +111,9 @@ func BenchmarkBufferInsert(b *testing.B) {
 // Average time to get text in the range of two random indices in a 2000-line
 // buffer.
 //
-// 2014/05/18 15:48 - 230000 ns/op
-// 2014/05/18 17:17 - 110000 ns/op
+// 2015/05/18 15:48 - 230000 ns/op - red-black tree
+// 2015/05/18 17:17 - 110000 ns/op - linked list
+// 2015/05/18 17:39 -  83000 ns/op - reuse strings array
 func BenchmarkBufferGet(b *testing.B) {
 	buf := randBuffer(2000)
 	indexes := make([]Index, b.N*2)

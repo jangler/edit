@@ -8,15 +8,17 @@ import (
 
 // Buffer is a thread-safe text-editing buffer.
 type Buffer struct {
-	lines  *list.List
-	unlock chan int
+	lines   *list.List
+	unlock  chan int // Used as mutex
+	strings []string // For misc. use *only* when locked
 }
 
 // NewBuffer initializes and returns a new empty Buffer.
 func NewBuffer() *Buffer {
 	b := Buffer{
-		lines:  list.New(),
-		unlock: make(chan int, 1),
+		lines:   list.New(),
+		unlock:  make(chan int, 1),
+		strings: make([]string, 0),
 	}
 	b.lines.PushBack("")
 	b.unlock <- 1
@@ -24,9 +26,17 @@ func NewBuffer() *Buffer {
 }
 
 func (b *Buffer) getLine(n int) *list.Element {
-	elem := b.lines.Front()
-	for n = n; n > 1; n-- {
-		elem = elem.Next()
+	var elem *list.Element
+	if n > b.lines.Len()/2 {
+		elem = b.lines.Back()
+		for i := b.lines.Len(); i > n; i-- {
+			elem = elem.Prev()
+		}
+	} else {
+		elem = b.lines.Front()
+		for n = n; n > 1; n-- {
+			elem = elem.Next()
+		}
 	}
 	return elem
 }
@@ -68,7 +78,10 @@ func (b *Buffer) Get(begin, end Index) string {
 	}
 	begin, end = b.clip(begin), b.clip(end)
 	n := 1 + end.Line - begin.Line
-	lines := make([]string, n)
+	if len(b.strings) < n {
+		b.strings = make([]string, n*2)
+	}
+	lines := b.strings[:n]
 	elem := b.getLine(begin.Line)
 	for i := 0; i < n; i++ {
 		lines[i] = elem.Value.(string)
@@ -78,7 +91,7 @@ func (b *Buffer) Get(begin, end Index) string {
 	if n > 1 {
 		lines[0] = lines[0][begin.Char:]
 		lines[n-1] = lines[n-1][:end.Char]
-	} else if n == 1 {
+	} else {
 		lines[0] = lines[0][begin.Char:end.Char]
 	}
 	return strings.Join(lines, "\n")
