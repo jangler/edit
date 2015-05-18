@@ -14,25 +14,25 @@ func TestBuffer(t *testing.T) {
 		t.Errorf("Get returned %#v; want %#v", got, want)
 	}
 
-	b.Insert(Index{1, 0}, "world")
+	b.Insert(Index{1, -1}, "world") // Index char too low
 	want, got = "world", b.Get(Index{1, 0}, b.End())
 	if want != got {
 		t.Errorf("Get returned %#v; want %#v", got, want)
 	}
 
-	b.Insert(Index{1, 0}, "hello, ")
+	b.Insert(Index{2, 0}, "hello, ") // Index line too high
 	want, got = "hello, world", b.Get(Index{1, 0}, b.End())
 	if want != got {
 		t.Errorf("Get returned %#v; want %#v", got, want)
 	}
 
-	b.Insert(b.End(), "!\nhello again!")
+	b.Insert(Index{1, 20}, "!\nhello again!") // Index char too high
 	want, got = "hello, world!\nhello again!", b.Get(Index{1, 0}, b.End())
 	if want != got {
 		t.Errorf("Get returned %#v; want %#v", got, want)
 	}
 
-	b.Insert(Index{1, 0}, "\n")
+	b.Insert(Index{0, 0}, "\n") // Index line too low
 	want, got = "\nhello, world!\nhello again!", b.Get(Index{1, 0}, b.End())
 	if want != got {
 		t.Errorf("Get returned %#v; want %#v", got, want)
@@ -74,6 +74,7 @@ func randBuffer(numLines int) *Buffer {
 // random position.
 //
 // 2014/05/18 15:48 - 61000 ns/op
+// 2014/05/18 17:17 - 19000 ns/op
 func BenchmarkBufferInsert(b *testing.B) {
 	insertions := make([]insertion, b.N)
 	for i := 0; i < b.N; i++ {
@@ -92,7 +93,7 @@ func BenchmarkBufferInsert(b *testing.B) {
 			buf = NewBuffer()
 			b.StartTimer()
 		}
-		buf.Insert(buf.Clip(insertions[i].index), insertions[i].text)
+		buf.Insert(insertions[i].index, insertions[i].text)
 	}
 }
 
@@ -100,11 +101,12 @@ func BenchmarkBufferInsert(b *testing.B) {
 // buffer.
 //
 // 2014/05/18 15:48 - 230000 ns/op
+// 2014/05/18 17:17 - 110000 ns/op
 func BenchmarkBufferGet(b *testing.B) {
 	buf := randBuffer(2000)
 	indexes := make([]Index, b.N*2)
 	for i := 0; i < b.N*2; i++ {
-		indexes[i] = buf.Clip(Index{1 + rand.Int()%2000, rand.Int() % 80})
+		indexes[i] = Index{1 + rand.Int()%2000, rand.Int() % 80}
 	}
 
 	b.ResetTimer()
