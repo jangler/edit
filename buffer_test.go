@@ -83,6 +83,7 @@ func TestBuffer(t *testing.T) {
 
 func TestBufferDisplay(t *testing.T) {
 	b := NewBuffer()
+	b.DisplayLines() // Shouldn't panic if there's no size or text
 	b.Insert(Index{1, 0},
 		"package main\nfunc main() {\n\tprintln(\"hi\")\n}\n")
 	b.SetSize(8, 10)
@@ -180,6 +181,18 @@ func BenchmarkBufferDelete(b *testing.B) {
 	}
 }
 
+// Current benchmark: 11000 ns/op
+func BenchmarkBufferDisplayLines(b *testing.B) {
+	buf := NewBuffer()
+	for i := 0; i < benchBufLines/8; i++ {
+		buf.Insert(buf.End(), testSource)
+	}
+	buf.SetSize(80, 25)
+	for i := 0; i < b.N; i++ {
+		buf.DisplayLines()
+	}
+}
+
 // Current benchmark: 12000 ns/op
 func BenchmarkBufferGet(b *testing.B) {
 	buf := randBuffer(benchBufLines)
@@ -195,6 +208,7 @@ func BenchmarkBufferGet(b *testing.B) {
 // Current benchmark: 27000 ns/op
 func BenchmarkBufferInsert(b *testing.B) {
 	buf := randBuffer(benchBufLines)
+	buf.SetSize(80, 25)
 	indexes := randIndexes(buf, b.N, benchOpLines)
 
 	b.ResetTimer()
@@ -225,5 +239,19 @@ func BenchmarkBufferResetModified(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf.ResetModified()
+	}
+}
+
+// Current benchmark: 100 ms/op
+func BenchmarkBufferSetSyntax(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		buf := NewBuffer()
+		for i := 0; i < benchBufLines/8; i++ {
+			buf.Insert(buf.End(), testSource)
+		}
+		buf.SetSize(80, 25)
+		b.StartTimer()
+		buf.SetSyntax(goRules)
 	}
 }

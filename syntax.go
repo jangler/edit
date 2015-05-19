@@ -28,9 +28,10 @@ func NewRule(begin, end string, tag int) (Rule, error) {
 	return Rule{beginRegexp, nil, tag}, nil
 }
 
+// Fragment is a string annotated with a tag.
 type Fragment struct {
-	text string
-	tag  int
+	Text string
+	Tag  int
 }
 
 type syntax []Rule

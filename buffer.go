@@ -225,16 +225,16 @@ func (b *Buffer) SetSyntax(rules []Rule) {
 		for elem := b.lines.Front(); elem != nil; elem = elem.Next() {
 			dLine, col := list.New(), 0
 			for frag := range b.syntax.split(elem.Value.(string)) {
-				text := expand(frag.text, b.tabWidth)
+				text := expand(frag.Text, b.tabWidth)
 				for text != "" {
 					if len(text)+col <= b.cols {
-						dLine.PushBack(Fragment{text, frag.tag})
+						dLine.PushBack(Fragment{text, frag.Tag})
 						col += len(text)
 						text = ""
 					} else {
 						if col < b.cols {
 							dLine.PushBack(
-								Fragment{text[:b.cols-col], frag.tag})
+								Fragment{text[:b.cols-col], frag.Tag})
 						}
 						b.dLines.PushBack(dLine)
 						dLine = list.New()

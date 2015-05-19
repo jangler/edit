@@ -74,24 +74,27 @@ func main() {
 }
 `
 
-// Current benchmark: 350000 ns/op
-func BenchmarkSyntaxSplit(b *testing.B) {
+var (
 	// Simplified set of rules for highlighting go source code
-	keywordRule, _ := NewRule(`\b(break|case|chan|const|continue|default|`+
+	keywordRule, _ = NewRule(`\b(break|case|chan|const|continue|default|`+
 		`defer|else|fallthrough|for|func|go|goto|if|import|interface|map|`+
 		`package|range|return|select|struct|switch|type|var)\b`, "", 0)
-	numRule, _ := NewRule(`\b\d+(\.\d+)?\b`, "", 1)
-	stringRule, _ := NewRule(`"`, `"`, 1)
-	commentRule, _ := NewRule(`//`, "\n", 2)
-	var rules syntax = []Rule{keywordRule, numRule, stringRule, commentRule}
+	numRule, _     = NewRule(`\b\d+(\.\d+)?\b`, "", 1)
+	stringRule, _  = NewRule(`"`, `"`, 1)
+	commentRule, _ = NewRule(`//`, "($|\n)", 2)
 
+	goRules syntax = []Rule{keywordRule, numRule, stringRule, commentRule}
+)
+
+// Current benchmark: 350000 ns/op
+func BenchmarkSyntaxSplit(b *testing.B) {
 	// Make sure the rules work
 	fragments := []Fragment{{"package", 0}, {" main\n\n", noneTag},
 		{"import", 0}, {" ", noneTag}, {`"fmt"`, 1}, {"\n\n", noneTag},
 		{"func", 0}, {" main() {\n\tv := ", noneTag}, {"42", 1},
 		{" ", noneTag}, {"// change me!\n", 2}, {"\tfmt.Printf(", noneTag},
 		{`"v is of type %T\n"`, 1}, {", v)\n}\n", noneTag}}
-	c := rules.split(testSource)
+	c := goRules.split(testSource)
 	for _, frag := range fragments {
 		if want, got := frag, <-c; want != got {
 			b.Fatalf("<-c == %#v; want %#v", got, want)
@@ -104,7 +107,7 @@ func BenchmarkSyntaxSplit(b *testing.B) {
 	// Benchmark
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c = rules.split(testSource)
+		c = goRules.split(testSource)
 		for _ = range c {
 			// Do nothing
 		}
