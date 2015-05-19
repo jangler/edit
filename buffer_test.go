@@ -1,6 +1,7 @@
 package edit
 
 import (
+	"container/list"
 	"math/rand"
 	"strings"
 	"testing"
@@ -80,12 +81,53 @@ func TestBuffer(t *testing.T) {
 	}
 }
 
+func TestBufferDisplay(t *testing.T) {
+	b := NewBuffer()
+	b.Insert(Index{1, 0},
+		"package main\nfunc main() {\n\tprintln(\"hi\")\n}\n")
+	b.SetSize(8, 10)
+	b.SetTabWidth(4)
+	iRule, _ := NewRule(`\b\w*i\w*\b`, "", 0)
+	b.SetSyntax([]Rule{iRule})
+	dLines := make([]*list.List, 10)
+	for i := range dLines {
+		dLines[i] = list.New()
+	}
+	dLines[0].PushBack(Fragment{"package ", noneTag})
+	dLines[1].PushBack(Fragment{"main", 0})
+	dLines[2].PushBack(Fragment{"func ", noneTag})
+	dLines[2].PushBack(Fragment{"mai", 0})
+	dLines[3].PushBack(Fragment{"n", 0})
+	dLines[3].PushBack(Fragment{"() {", noneTag})
+	dLines[4].PushBack(Fragment{"    ", noneTag})
+	dLines[4].PushBack(Fragment{"prin", 0})
+	dLines[5].PushBack(Fragment{"tln", 0})
+	dLines[5].PushBack(Fragment{`("`, noneTag})
+	dLines[5].PushBack(Fragment{"hi", 0})
+	dLines[5].PushBack(Fragment{`"`, noneTag})
+	dLines[6].PushBack(Fragment{")", noneTag})
+	dLines[7].PushBack(Fragment{"}", noneTag})
+	for i, dLine := range b.DisplayLines() {
+		e1, e2 := dLines[i].Front(), dLine.Front()
+		for e1 != nil && e2 != nil {
+			if e1.Value.(Fragment) != e2.Value.(Fragment) {
+				t.Errorf("DisplayLines: got %#v, want %#v",
+					e2.Value.(Fragment), e1.Value.(Fragment))
+			}
+			e1, e2 = e1.Next(), e2.Next()
+		}
+		if e1 != e2 { // Should both be nil
+			t.Errorf("DisplayLines: got %#v, want %#v", e2, e1)
+		}
+	}
+}
+
 func randBuffer(numLines int) *Buffer {
 	buf := NewBuffer()
 	lines := make([]string, numLines)
-	line := make([]byte, 80)
+	line := make([]byte, benchMaxLine)
 	for i := 0; i < numLines; i++ {
-		lineLen := rand.Int() % 80
+		lineLen := rand.Int() % benchMaxLine
 		for j := 0; j < lineLen; j++ {
 			line[j] = byte(0x20 + rand.Int()%0x60)
 		}
@@ -98,8 +140,10 @@ func randBuffer(numLines int) *Buffer {
 func randIndexes(b *Buffer, n, maxLines int) []Index {
 	indexes := make([]Index, n*2)
 	for i := 0; i < n*2; i += 2 {
-		begin := b.clip(Index{1 + rand.Int()%b.lines.Len(), rand.Int() % 80})
-		end := b.clip(Index{1 + rand.Int()%b.lines.Len(), rand.Int() % 80})
+		begin := b.clip(Index{1 + rand.Int()%b.lines.Len(),
+			rand.Int() % benchMaxLine})
+		end := b.clip(Index{1 + rand.Int()%b.lines.Len(),
+			rand.Int() % benchMaxLine})
 		if end.Less(begin) {
 			begin, end = end, begin
 		}
@@ -112,13 +156,16 @@ func randIndexes(b *Buffer, n, maxLines int) []Index {
 	return indexes
 }
 
-// Average time to delete text of up to 25 lines at a random index in a
-// 2000-line buffer.
-//
+const (
+	benchBufLines = 2000 // Lines in a benchmarking buffer
+	benchOpLines  = 25   // Maximum lines in a benchmarking operation
+	benchMaxLine  = 80   // Maximum characters in a benchmarking line
+)
+
 // Current benchmark: 16000 ns/op
 func BenchmarkBufferDelete(b *testing.B) {
-	buf := randBuffer(2000)
-	indexes := randIndexes(buf, b.N, 25)
+	buf := randBuffer(benchBufLines)
+	indexes := randIndexes(buf, b.N, benchOpLines)
 
 	b.ResetTimer()
 
@@ -133,13 +180,10 @@ func BenchmarkBufferDelete(b *testing.B) {
 	}
 }
 
-// Average time to get text of up to 25 lines at a random index in a 2000-line
-// buffer.
-//
 // Current benchmark: 12000 ns/op
 func BenchmarkBufferGet(b *testing.B) {
-	buf := randBuffer(2000)
-	indexes := randIndexes(buf, b.N, 25)
+	buf := randBuffer(benchBufLines)
+	indexes := randIndexes(buf, b.N, benchOpLines)
 
 	b.ResetTimer()
 
@@ -148,13 +192,10 @@ func BenchmarkBufferGet(b *testing.B) {
 	}
 }
 
-// Average time to insert text of up to 25 lines at a random index in a
-// 2000-line buffer.
-//
 // Current benchmark: 27000 ns/op
 func BenchmarkBufferInsert(b *testing.B) {
-	buf := randBuffer(2000)
-	indexes := randIndexes(buf, b.N, 25)
+	buf := randBuffer(benchBufLines)
+	indexes := randIndexes(buf, b.N, benchOpLines)
 
 	b.ResetTimer()
 
@@ -169,20 +210,18 @@ func BenchmarkBufferInsert(b *testing.B) {
 	}
 }
 
-// Average time to check modified state in a 2000-line buffer.
 // Current benchmark: 1200000 ns/op
 func BenchmarkBufferModified(b *testing.B) {
-	buf := randBuffer(2000)
+	buf := randBuffer(benchBufLines)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf.Modified()
 	}
 }
 
-// Average time to reset modified state in a 2000-line buffer.
 // Current benchmark: 1200000 ns/op
 func BenchmarkBufferResetModified(b *testing.B) {
-	buf := randBuffer(2000)
+	buf := randBuffer(benchBufLines)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf.ResetModified()
