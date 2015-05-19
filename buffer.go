@@ -3,22 +3,25 @@ package edit
 
 import (
 	"container/list"
+	"crypto/md5"
 	"strings"
 )
 
 // Buffer is a thread-safe text-editing buffer.
 type Buffer struct {
-	lines   *list.List
-	unlock  chan int // Used as mutex
-	strings []string // For misc. use *only* when locked
+	lines    *list.List
+	unlock   chan int // Used as mutex
+	strings  []string // For misc. use *only* when locked
+	checksum [md5.Size]byte
 }
 
 // NewBuffer initializes and returns a new empty Buffer.
 func NewBuffer() *Buffer {
 	b := Buffer{
-		lines:   list.New(),
-		unlock:  make(chan int, 1),
-		strings: make([]string, 0),
+		lines:    list.New(),
+		unlock:   make(chan int, 1),
+		strings:  make([]string, 0),
+		checksum: md5.Sum([]byte{}),
 	}
 	b.lines.PushBack("")
 	b.unlock <- 1
@@ -81,22 +84,24 @@ func (b *Buffer) Delete(begin, end Index) {
 	b.unlock <- 1
 }
 
-// End returns an Index after the last character in the Buffer.
-func (b *Buffer) End() Index {
-	<-b.unlock
+func (b *Buffer) end() Index {
 	index := Index{1, 0}
 	if b.lines.Len() > 0 {
 		index = Index{b.lines.Len(), len(b.lines.Back().Value.(string))}
 	}
+	return index
+}
+
+// End returns an Index after the last character in the Buffer.
+func (b *Buffer) End() Index {
+	<-b.unlock
+	index := b.end()
 	b.unlock <- 1
 	return index
 }
 
-// Get returns the text in the Buffer between begin and end.
-func (b *Buffer) Get(begin, end Index) string {
-	<-b.unlock
+func (b *Buffer) get(begin, end Index) string {
 	if end.Less(begin) || end == begin {
-		b.unlock <- 1
 		return ""
 	}
 	begin, end = b.clip(begin), b.clip(end)
@@ -110,7 +115,6 @@ func (b *Buffer) Get(begin, end Index) string {
 		lines[i] = elem.Value.(string)
 		elem = elem.Next()
 	}
-	b.unlock <- 1
 	if n > 1 {
 		lines[0] = lines[0][begin.Char:]
 		lines[n-1] = lines[n-1][:end.Char]
@@ -118,6 +122,14 @@ func (b *Buffer) Get(begin, end Index) string {
 		lines[0] = lines[0][begin.Char:end.Char]
 	}
 	return strings.Join(lines, "\n")
+}
+
+// Get returns the text in the Buffer between begin and end.
+func (b *Buffer) Get(begin, end Index) string {
+	<-b.unlock
+	s := b.get(begin, end)
+	b.unlock <- 1
+	return s
 }
 
 // Insert inserts text into the buffer at index.
@@ -132,6 +144,20 @@ func (b *Buffer) Insert(index Index, text string) {
 	elem.Value = elem.Value.(string) + first.Value.(string)[index.Char:]
 	first.Value = first.Value.(string)[:index.Char] +
 		b.lines.Remove(first.Next()).(string)
+	b.unlock <- 1
+}
+
+// Modified returns true if and only if the buffer's contents differ from the
+// contents at the last time ResetModified was called.
+func (b *Buffer) Modified() bool {
+	return md5.Sum([]byte(b.Get(Index{1, 0}, b.End()))) != b.checksum
+}
+
+// ResetModified sets the comparison point for future calls to Modified to the
+// current contents of the buffer.
+func (b *Buffer) ResetModified() {
+	<-b.unlock
+	b.checksum = md5.Sum([]byte(b.get(Index{1, 0}, b.end())))
 	b.unlock <- 1
 }
 

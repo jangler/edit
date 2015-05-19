@@ -13,6 +13,9 @@ func TestBuffer(t *testing.T) {
 	if want != got {
 		t.Errorf("Get returned %#v; want %#v", got, want)
 	}
+	if b.Modified() {
+		t.Errorf("Modified returned true for new buffer")
+	}
 
 	// Insert tests
 	b.Insert(Index{1, -1}, "world") // Index char too low
@@ -36,6 +39,10 @@ func TestBuffer(t *testing.T) {
 		t.Errorf("Get returned %#v; want %#v", got, want)
 	}
 
+	if !b.Modified() {
+		t.Errorf("Modified returned false for modified buffer")
+	}
+
 	// Additional Get tests for getLine
 	want, got = "\nhello, world!\nhello again!", b.Get(Index{2, 0}, b.End())
 	if want != got {
@@ -44,6 +51,11 @@ func TestBuffer(t *testing.T) {
 	want, got = "hello, world!\nhello again!", b.Get(Index{3, 0}, b.End())
 	if want != got {
 		t.Errorf("Get returned %#v; want %#v", got, want)
+	}
+
+	b.ResetModified()
+	if b.Modified() {
+		t.Errorf("Modified returned true directly after ResetModified")
 	}
 
 	// Delete tests
@@ -61,6 +73,10 @@ func TestBuffer(t *testing.T) {
 	want, got = "\nan!", b.Get(Index{1, 0}, b.End())
 	if want != got {
 		t.Errorf("Get returned %#v; want %#v", got, want)
+	}
+
+	if !b.Modified() {
+		t.Errorf("Modified returned false for modified buffer")
 	}
 }
 
@@ -99,8 +115,7 @@ func randIndexes(b *Buffer, n, maxLines int) []Index {
 // Average time to delete text of up to 25 lines at a random index in a
 // 2000-line buffer.
 //
-// 2015/05/18 18:31 - 46000 ns/op - initial implementation
-// 2015/05/18 19:05 - 16000 ns/op - change benchmark
+// Current benchmark: 16000 ns/op
 func BenchmarkBufferDelete(b *testing.B) {
 	buf := randBuffer(2000)
 	indexes := randIndexes(buf, b.N, 25)
@@ -121,10 +136,7 @@ func BenchmarkBufferDelete(b *testing.B) {
 // Average time to get text of up to 25 lines at a random index in a 2000-line
 // buffer.
 //
-// 2015/05/18 15:48 - 230000 ns/op - red-black tree
-// 2015/05/18 17:17 - 110000 ns/op - linked list
-// 2015/05/18 17:39 -  83000 ns/op - reuse strings array
-// 2015/05/18 19:04 -  12000 ns/op - change benchmark
+// Current benchmark: 12000 ns/op
 func BenchmarkBufferGet(b *testing.B) {
 	buf := randBuffer(2000)
 	indexes := randIndexes(buf, b.N, 25)
@@ -139,10 +151,7 @@ func BenchmarkBufferGet(b *testing.B) {
 // Average time to insert text of up to 25 lines at a random index in a
 // 2000-line buffer.
 //
-// 2015/05/18 15:48 -  61000 ns/op - red-black tree
-// 2015/05/18 17:17 -  19000 ns/op - linked list
-// 2015/05/18 17:30 -  10000 ns/op - faster getLine
-// 2015/05/18 19:04 -  28000 ns/op - change benchmark
+// Current benchmark: 27000 ns/op
 func BenchmarkBufferInsert(b *testing.B) {
 	buf := randBuffer(2000)
 	indexes := randIndexes(buf, b.N, 25)
@@ -157,5 +166,25 @@ func BenchmarkBufferInsert(b *testing.B) {
 		b.StopTimer()
 		buf.Delete(indexes[i*2], indexes[i*2+1])
 		b.StartTimer()
+	}
+}
+
+// Average time to check modified state in a 2000-line buffer.
+// Current benchmark: 1200000 ns/op
+func BenchmarkBufferModified(b *testing.B) {
+	buf := randBuffer(2000)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.Modified()
+	}
+}
+
+// Average time to reset modified state in a 2000-line buffer.
+// Current benchmark: 1200000 ns/op
+func BenchmarkBufferResetModified(b *testing.B) {
+	buf := randBuffer(2000)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.ResetModified()
 	}
 }
