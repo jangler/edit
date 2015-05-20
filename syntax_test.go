@@ -21,13 +21,16 @@ func TestSyntaxSplit(t *testing.T) {
 	// Test empty string
 	var rules syntax = []Rule{}
 	c := rules.split("")
+	if want, got := (Fragment{"", noneTag}), <-c; want != got {
+		t.Errorf("<-c == %#v; want %#v", got, want)
+	}
 	if _, ok := <-c; ok {
 		t.Error("channel should be closed")
 	}
 
 	// Test no rules
-	c = rules.split(" ")
-	if want, got := (Fragment{" ", noneTag}), <-c; want != got {
+	c = rules.split("hello")
+	if want, got := (Fragment{"hello", noneTag}), <-c; want != got {
 		t.Errorf("<-c == %#v; want %#v", got, want)
 	}
 	if _, ok := <-c; ok {

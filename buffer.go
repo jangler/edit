@@ -85,39 +85,37 @@ func (b *Buffer) clip(index Index) Index {
 }
 
 func (b *Buffer) redisplay(begin, end int) {
-	b.dLines.Init()
 	beginElem, endElem := getElem(b.lines, begin), getElem(b.lines, end)
 	for elem := beginElem; elem != nil; elem = elem.Next() {
 		// Remove existing display lines, but keep first as an anchor
-		disp := elem.Value.(lineInfo).disp
-		for disp != nil {
-			disp = disp.Next()
-			if disp != nil && disp.Value.(fragList).cont {
-				b.dLines.Remove(disp)
-			} else {
-				break
-			}
-		}
 		first := elem.Value.(lineInfo).disp
+		disp := first.Next()
+		for disp != nil && disp.Value.(fragList).cont {
+			next := disp.Next()
+			b.dLines.Remove(disp)
+			disp = next
+		}
 		// Insert new display lines
 		prev := first
 		dLine, col := fragList{list.New(), false}, 0
 		for frag := range b.syntax.split(elem.Value.(lineInfo).text) {
 			text := expand(frag.Text, b.tabWidth)
-			for text != "" {
+			for {
 				if len(text)+col <= b.cols {
 					dLine.PushBack(Fragment{text, frag.Tag})
 					col += len(text)
 					text = ""
 				} else {
 					if col < b.cols {
-						dLine.PushBack(
-							Fragment{text[:b.cols-col], frag.Tag})
+						dLine.PushBack(Fragment{text[:b.cols-col], frag.Tag})
 					}
 					prev = b.dLines.InsertAfter(dLine, prev)
 					dLine = fragList{list.New(), true}
 					text = text[b.cols-col:]
 					col = 0
+				}
+				if text == "" {
+					break
 				}
 			}
 		}
@@ -237,32 +235,31 @@ func (b *Buffer) Insert(index Index, text string) {
 	<-b.unlock
 	index = b.clip(index)
 	elem := getElem(b.lines, index.Line)
-	first := elem
 	lines := strings.Split(text, "\n")
-	for _, line := range lines {
+	if len(lines) == 1 {
+		li := elem.Value.(lineInfo)
+		elem.Value = lineInfo{li.text[:index.Char] + lines[0] +
+			li.text[index.Char:], li.disp}
+	} else {
+		firstText := elem.Value.(lineInfo).text
 		disp := elem.Value.(lineInfo).disp
 		for disp.Next() != nil && disp.Next().Value.(fragList).cont {
 			disp = disp.Next()
 		}
-		disp = b.dLines.InsertAfter(fragList{list.New(), false}, disp)
-		elem = b.lines.InsertAfter(lineInfo{line, disp}, elem)
-	}
-	elem.Value = lineInfo{
-		elem.Value.(lineInfo).text + first.Value.(lineInfo).text[index.Char:],
-		elem.Value.(lineInfo).disp,
-	}
-	e := first.Next().Value.(lineInfo).disp
-	for {
-		next := e.Next()
-		b.dLines.Remove(e)
-		e = next
-		if e == nil || !e.Value.(fragList).cont {
-			break
+		for i, line := range lines {
+			if i == 0 {
+				li := elem.Value.(lineInfo)
+				elem.Value = lineInfo{firstText[:index.Char] + line, li.disp}
+			} else if i == len(lines)-1 {
+				disp = b.dLines.InsertAfter(fragList{list.New(), false}, disp)
+				elem = b.lines.InsertAfter(
+					lineInfo{line + firstText[index.Char:], disp}, elem)
+			} else {
+				disp = b.dLines.InsertAfter(fragList{list.New(), false}, disp)
+				elem = b.lines.InsertAfter(lineInfo{line, disp}, elem)
+			}
 		}
 	}
-	first.Value = lineInfo{first.Value.(lineInfo).text[:index.Char] +
-		b.lines.Remove(first.Next()).(lineInfo).text,
-		first.Value.(lineInfo).disp}
 	b.redisplay(index.Line, index.Line+len(lines)-1)
 	b.unlock <- 1
 }
@@ -291,6 +288,9 @@ func (b *Buffer) ResetModified() {
 func (b *Buffer) SetSize(cols, rows int) {
 	<-b.unlock
 	b.cols, b.rows = cols, rows
+	if b.cols < 1 {
+		b.cols = 1
+	}
 	// TODO:
 	// This also needs to recompute display lines, but it doesn't need to
 	// re-split them into fragments, so it might be faster to use a different

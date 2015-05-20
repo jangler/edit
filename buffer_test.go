@@ -87,7 +87,8 @@ func TestBufferDisplay(t *testing.T) {
 	b.DisplayLines() // Shouldn't panic if there's no size or text
 	iRule, _ := NewRule(`\b\w*i\w*\b`, "", 0)
 	b.SetSyntax([]Rule{iRule})
-	b.SetSize(8, 10)
+	b.SetSize(0, 1) // Make sure 0 cols is ok--should correct to 1
+	b.SetSize(8, 9)
 	b.SetTabWidth(4)
 	b.Insert(Index{1, 0},
 		"package main\nfunc main() {\n\tprintln(\"hi\")\n}\n")
@@ -109,6 +110,7 @@ func TestBufferDisplay(t *testing.T) {
 	dLines[5].PushBack(Fragment{`"`, noneTag})
 	dLines[6].PushBack(Fragment{")", noneTag})
 	dLines[7].PushBack(Fragment{"}", noneTag})
+	dLines[8].PushBack(Fragment{"", noneTag})
 	for i, dLine := range b.DisplayLines() {
 		e1, e2 := dLines[i].Front(), dLine.Front()
 		for e1 != nil && e2 != nil {
@@ -182,7 +184,7 @@ func BenchmarkBufferDelete(b *testing.B) {
 	}
 }
 
-// Current benchmark: 13000 ns/op (was 10000 before redisplay)
+// Current benchmark: 35000 ns/op (was 10000 before redisplay)
 func BenchmarkBufferDisplayLines(b *testing.B) {
 	buf := NewBuffer()
 	for i := 0; i < benchBufLines/8; i++ {

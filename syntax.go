@@ -39,6 +39,9 @@ type syntax []Rule
 func (rules syntax) split(s string) <-chan Fragment {
 	c := make(chan Fragment)
 	go func() {
+		if s == "" {
+			c <- Fragment{s, noneTag}
+		}
 		for s != "" {
 			// Find the first matching rule
 			var minLoc []int
