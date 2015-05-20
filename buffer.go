@@ -23,6 +23,11 @@ func getElem(l *list.List, n int) *list.Element {
 	return elem
 }
 
+type fragList struct {
+	*list.List
+	cont bool
+}
+
 type lineInfo struct {
 	text string
 	disp *list.Element
@@ -30,8 +35,8 @@ type lineInfo struct {
 
 // Buffer is a thread-safe text-editing buffer.
 type Buffer struct {
-	lines      *list.List // List of lineinfos
-	dLines     *list.List // Display lines; list of lists of fragments
+	lines      *list.List // List of lineInfos
+	dLines     *list.List // Display lines; list of fragLists
 	unlock     chan int   // Used as mutex
 	strings    []string   // For misc. use *only* when locked
 	checksum   [md5.Size]byte
@@ -55,7 +60,7 @@ func NewBuffer() *Buffer {
 		tabWidth: 8,
 		scroll:   0,
 	}
-	dLine := list.New()
+	dLine := fragList{list.New(), false}
 	dLine.PushBack(Fragment{})
 	b.lines.PushBack(lineInfo{"", b.dLines.PushBack(dLine)})
 	b.unlock <- 1
@@ -79,6 +84,54 @@ func (b *Buffer) clip(index Index) Index {
 	return index
 }
 
+func (b *Buffer) redisplay(begin, end int) {
+	b.dLines.Init()
+	beginElem, endElem := getElem(b.lines, begin), getElem(b.lines, end)
+	for elem := beginElem; elem != nil; elem = elem.Next() {
+		// Remove existing display lines, but keep first as an anchor
+		disp := elem.Value.(lineInfo).disp
+		for disp != nil {
+			disp = disp.Next()
+			if disp != nil && disp.Value.(fragList).cont {
+				b.dLines.Remove(disp)
+			} else {
+				break
+			}
+		}
+		first := elem.Value.(lineInfo).disp
+		// Insert new display lines
+		prev := first
+		dLine, col := fragList{list.New(), false}, 0
+		for frag := range b.syntax.split(elem.Value.(lineInfo).text) {
+			text := expand(frag.Text, b.tabWidth)
+			for text != "" {
+				if len(text)+col <= b.cols {
+					dLine.PushBack(Fragment{text, frag.Tag})
+					col += len(text)
+					text = ""
+				} else {
+					if col < b.cols {
+						dLine.PushBack(
+							Fragment{text[:b.cols-col], frag.Tag})
+					}
+					prev = b.dLines.InsertAfter(dLine, prev)
+					dLine = fragList{list.New(), true}
+					text = text[b.cols-col:]
+					col = 0
+				}
+			}
+		}
+		b.dLines.InsertAfter(dLine, prev)
+		elem.Value = lineInfo{elem.Value.(lineInfo).text, first.Next()}
+		// Remove leftover display line
+		b.dLines.Remove(first)
+		// Break if end line has been processed
+		if elem == endElem {
+			break
+		}
+	}
+}
+
 // Delete removes the text in the buffer between begin and end.
 func (b *Buffer) Delete(begin, end Index) {
 	<-b.unlock
@@ -96,14 +149,20 @@ func (b *Buffer) Delete(begin, end Index) {
 		firstLine := elem.Value.(lineInfo).text
 		for i := 0; i < n; i++ {
 			elem = elem.Next()
-			b.lines.Remove(elem.Prev())
+			e := b.lines.Remove(elem.Prev()).(lineInfo).disp
+			for e != nil {
+				e = e.Next()
+				if e != nil && e.Value.(fragList).cont {
+					b.dLines.Remove(e)
+				} else {
+					break
+				}
+			}
 		}
-		elem.Value = lineInfo{
-			firstLine[:begin.Char] + elem.Value.(lineInfo).text[end.Char:],
-			nil,
-		}
+		elem.Value = lineInfo{firstLine[:begin.Char] +
+			elem.Value.(lineInfo).text[end.Char:], elem.Value.(lineInfo).disp}
 	}
-	// TODO: Recompute display lines
+	b.redisplay(begin.Line, begin.Line)
 	b.unlock <- 1
 }
 
@@ -115,7 +174,7 @@ func (b *Buffer) DisplayLines() []*list.List {
 	for i := range lines {
 		fragments := list.New()
 		if l := dLine; l != nil {
-			for e := l.Value.(*list.List).Front(); e != nil; e = e.Next() {
+			for e := l.Value.(fragList).Front(); e != nil; e = e.Next() {
 				fragments.PushBack(e.Value.(Fragment))
 			}
 			dLine = dLine.Next()
@@ -179,16 +238,32 @@ func (b *Buffer) Insert(index Index, text string) {
 	index = b.clip(index)
 	elem := getElem(b.lines, index.Line)
 	first := elem
-	for _, line := range strings.Split(text, "\n") {
-		elem = b.lines.InsertAfter(lineInfo{line, nil}, elem)
+	lines := strings.Split(text, "\n")
+	for _, line := range lines {
+		disp := elem.Value.(lineInfo).disp
+		for disp.Next() != nil && disp.Next().Value.(fragList).cont {
+			disp = disp.Next()
+		}
+		disp = b.dLines.InsertAfter(fragList{list.New(), false}, disp)
+		elem = b.lines.InsertAfter(lineInfo{line, disp}, elem)
 	}
 	elem.Value = lineInfo{
 		elem.Value.(lineInfo).text + first.Value.(lineInfo).text[index.Char:],
 		elem.Value.(lineInfo).disp,
 	}
+	e := first.Next().Value.(lineInfo).disp
+	for {
+		next := e.Next()
+		b.dLines.Remove(e)
+		e = next
+		if e == nil || !e.Value.(fragList).cont {
+			break
+		}
+	}
 	first.Value = lineInfo{first.Value.(lineInfo).text[:index.Char] +
-		b.lines.Remove(first.Next()).(lineInfo).text, nil}
-	// TODO: Recompute display lines
+		b.lines.Remove(first.Next()).(lineInfo).text,
+		first.Value.(lineInfo).disp}
+	b.redisplay(index.Line, index.Line+len(lines)-1)
 	b.unlock <- 1
 }
 
@@ -219,7 +294,8 @@ func (b *Buffer) SetSize(cols, rows int) {
 	// TODO:
 	// This also needs to recompute display lines, but it doesn't need to
 	// re-split them into fragments, so it might be faster to use a different
-	// algorithm than the one used for SetSyntax. Try each and benchmark!
+	// algorithm than the one used for SetSyntax.
+	b.redisplay(1, b.lines.Len())
 	b.unlock <- 1
 }
 
@@ -234,31 +310,7 @@ func (b *Buffer) SetSyntax(rules []Rule) {
 		b.syntax[i] = rule
 	}
 	b.syntax = b.syntax[:len(rules)]
-	// Recompute all display lines
-	b.dLines.Init()
-	for elem := b.lines.Front(); elem != nil; elem = elem.Next() {
-		dLine, col := list.New(), 0
-		for frag := range b.syntax.split(elem.Value.(lineInfo).text) {
-			text := expand(frag.Text, b.tabWidth)
-			for text != "" {
-				if len(text)+col <= b.cols {
-					dLine.PushBack(Fragment{text, frag.Tag})
-					col += len(text)
-					text = ""
-				} else {
-					if col < b.cols {
-						dLine.PushBack(
-							Fragment{text[:b.cols-col], frag.Tag})
-					}
-					b.dLines.PushBack(dLine)
-					dLine = list.New()
-					text = text[b.cols-col:]
-					col = 0
-				}
-			}
-		}
-		b.dLines.PushBack(dLine)
-	}
+	b.redisplay(1, b.lines.Len())
 	b.unlock <- 1
 }
 
@@ -266,6 +318,8 @@ func (b *Buffer) SetSyntax(rules []Rule) {
 func (b *Buffer) SetTabWidth(cols int) {
 	<-b.unlock
 	b.tabWidth = cols
+	// TODO: Same as SetSize.
+	b.redisplay(1, b.lines.Len())
 	b.unlock <- 1
 }
 
