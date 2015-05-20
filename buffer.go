@@ -323,6 +323,51 @@ func (b *Buffer) SetTabWidth(cols int) {
 	b.unlock <- 1
 }
 
+// ShiftIndex returns index shifted right by chars. If chars is negative, index
+// is shifted left.
+func (b *Buffer) ShiftIndex(index Index, chars int) Index {
+	index = b.clip(index)
+	elem := getElem(b.lines, index.Line)
+	for chars < 0 {
+		if index.Char == 0 {
+			if index.Line == 1 {
+				chars = 0
+			} else {
+				index.Line--
+				elem = elem.Prev()
+				index.Char = len(elem.Value.(lineInfo).text)
+				chars++
+			}
+		} else if -chars > index.Char {
+			chars += index.Char
+			index.Char = 0
+		} else {
+			index.Char += chars
+			chars = 0
+		}
+	}
+	for chars > 0 {
+		lineLen := len(elem.Value.(lineInfo).text)
+		if index.Char == lineLen {
+			if index.Line == b.lines.Len() {
+				chars = 0
+			} else {
+				index.Line++
+				index.Char = 0
+				elem = elem.Next()
+				chars--
+			}
+		} else if chars > lineLen-index.Char {
+			chars -= lineLen - index.Char
+			index.Char = lineLen
+		} else {
+			index.Char += chars
+			chars = 0
+		}
+	}
+	return index
+}
+
 // Index denotes a position in a Buffer.
 type Index struct {
 	Line, Char int

@@ -126,6 +126,29 @@ func TestBufferDisplay(t *testing.T) {
 	}
 }
 
+func TestBufferShiftIndex(t *testing.T) {
+	b := NewBuffer()
+	b.Insert(b.End(), testSource)
+	// No-op
+	if want, got := (Index{3, 3}), b.ShiftIndex(Index{3, 3}, 0); want != got {
+		t.Errorf("ShiftIndex() == %#v; want %#v", got, want)
+	}
+	// Don't overshoot
+	if wnt, got := (Index{8, 1}), b.ShiftIndex(Index{1, 0}, 102); wnt != got {
+		t.Errorf("ShiftIndex() == %#v; want %#v", got, wnt)
+	}
+	if want, got := (Index{1, 1}), b.ShiftIndex(b.End(), -102); want != got {
+		t.Errorf("ShiftIndex() == %#v; want %#v", got, want)
+	}
+	// Overshoot
+	if want, got := b.End(), b.ShiftIndex(Index{1, 0}, 104); want != got {
+		t.Errorf("ShiftIndex() == %#v; want %#v", got, want)
+	}
+	if want, got := (Index{1, 0}), b.ShiftIndex(b.End(), -104); want != got {
+		t.Errorf("ShiftIndex() == %#v; want %#v", got, want)
+	}
+}
+
 func randBuffer(numLines int) *Buffer {
 	buf := NewBuffer()
 	lines := make([]string, numLines)
@@ -281,5 +304,15 @@ func BenchmarkBufferSetTabWidth(b *testing.B) {
 		buf.SetSyntax(goRules)
 		b.StartTimer()
 		buf.SetTabWidth(1 + rand.Int()%8)
+	}
+}
+
+// Current benchmark: 12000 ns/op
+func BenchmarkBufferShiftIndex(b *testing.B) {
+	buf := randBuffer(benchBufLines)
+	indexes := randIndexes(buf, b.N/2+1, benchOpLines)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.ShiftIndex(indexes[i], rand.Int()%51-25)
 	}
 }
