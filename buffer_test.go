@@ -181,7 +181,7 @@ func BenchmarkBufferDelete(b *testing.B) {
 	}
 }
 
-// Current benchmark: 11000 ns/op
+// Current benchmark: 10000 ns/op
 func BenchmarkBufferDisplayLines(b *testing.B) {
 	buf := NewBuffer()
 	for i := 0; i < benchBufLines/8; i++ {
@@ -205,7 +205,7 @@ func BenchmarkBufferGet(b *testing.B) {
 	}
 }
 
-// Current benchmark: 27000 ns/op
+// Current benchmark: 31000 ns/op
 func BenchmarkBufferInsert(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	buf.SetSize(80, 25)

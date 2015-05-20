@@ -86,7 +86,7 @@ var (
 	goRules syntax = []Rule{keywordRule, numRule, stringRule, commentRule}
 )
 
-// Current benchmark: 350000 ns/op
+// Current benchmark: 340000 ns/op
 func BenchmarkSyntaxSplit(b *testing.B) {
 	// Make sure the rules work
 	fragments := []Fragment{{"package", 0}, {" main\n\n", noneTag},
