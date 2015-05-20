@@ -326,6 +326,7 @@ func (b *Buffer) SetTabWidth(cols int) {
 // ShiftIndex returns index shifted right by chars. If chars is negative, index
 // is shifted left.
 func (b *Buffer) ShiftIndex(index Index, chars int) Index {
+	<-b.unlock
 	index = b.clip(index)
 	elem := getElem(b.lines, index.Line)
 	for chars < 0 {
@@ -365,6 +366,7 @@ func (b *Buffer) ShiftIndex(index Index, chars int) Index {
 			chars = 0
 		}
 	}
+	b.unlock <- 1
 	return index
 }
 
