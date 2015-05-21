@@ -220,6 +220,30 @@ func TestBufferIndexCoords(t *testing.T) {
 	}
 }
 
+func TestBufferScroll(t *testing.T) {
+	b := NewBuffer()
+	b.SetSize(80, 1)
+	if want, got := -1.0, b.ScrollFraction(); want != got {
+		t.Errorf("ScrollFraction() == %v; want %v", got, want)
+	}
+	b.Insert(b.End(), "hello\nthere\nworld")
+	if want, got := 0.0, b.ScrollFraction(); want != got {
+		t.Errorf("ScrollFraction() == %v; want %v", got, want)
+	}
+	b.Scroll(1)
+	if want, got := 0.5, b.ScrollFraction(); want != got {
+		t.Errorf("ScrollFraction() == %v; want %v", got, want)
+	}
+	b.Scroll(2)
+	if want, got := 1.0, b.ScrollFraction(); want != got {
+		t.Errorf("ScrollFraction() == %v; want %v", got, want)
+	}
+	b.Scroll(-3)
+	if want, got := 0.0, b.ScrollFraction(); want != got {
+		t.Errorf("ScrollFraction() == %v; want %v", got, want)
+	}
+}
+
 func randBuffer(numLines int) *Buffer {
 	buf := NewBuffer()
 	lines := make([]string, numLines)

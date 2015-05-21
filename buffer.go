@@ -405,6 +405,31 @@ func (b *Buffer) ResetModified() {
 	b.unlock <- 1
 }
 
+// Scroll scrolls the buffer's display down by delta lines.
+func (b *Buffer) Scroll(delta int) {
+	<-b.unlock
+	b.scroll += delta
+	if b.scroll < 0 {
+		b.scroll = 0
+	} else if b.scroll+b.rows > b.dLines.Len() {
+		b.scroll = b.dLines.Len() - b.rows
+	}
+	b.unlock <- 1
+}
+
+// ScrollFraction returns a number in the range [0, 1] describing the vertical
+// scroll fraction of the buffer display. If the entire content is visible, -1
+// is returned instead.
+func (b *Buffer) ScrollFraction() float64 {
+	<-b.unlock
+	f := -1.0
+	if b.rows < b.dLines.Len() {
+		f = float64(b.scroll) / float64(b.dLines.Len()-b.rows)
+	}
+	b.unlock <- 1
+	return f
+}
+
 // SetSize sets the display size of the buffer.
 func (b *Buffer) SetSize(cols, rows int) {
 	<-b.unlock
