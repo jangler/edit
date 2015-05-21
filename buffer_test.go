@@ -198,6 +198,28 @@ func TestBufferMark(t *testing.T) {
 	}
 }
 
+func TestBufferIndexCoords(t *testing.T) {
+	// IndexFromCoords
+	b := NewBuffer()
+	if want, got := (Index{1, 0}), b.IndexFromCoords(-1, -1); want != got {
+		t.Errorf("IndexFromCoords() == %v; want %v", got, want)
+	}
+	if want, got := (Index{1, 0}), b.IndexFromCoords(1, 1); want != got {
+		t.Errorf("IndexFromCoords() == %v; want %v", got, want)
+	}
+	b.SetSize(4, 4)
+	b.Insert(b.End(), "\n\thello")
+	if want, got := (Index{2, 3}), b.IndexFromCoords(2, 3); want != got {
+		t.Errorf("IndexFromCoords() == %v; want %v", got, want)
+	}
+
+	// CoordsFromIndex
+	wX, wY := 2, 3
+	if gX, gY := b.CoordsFromIndex(Index{2, 3}); wX != gX || wY != gY {
+		t.Errorf("CoordsFromIndex() == %v, %v; want %v, %v", gX, gY, wX, wY)
+	}
+}
+
 func randBuffer(numLines int) *Buffer {
 	buf := NewBuffer()
 	lines := make([]string, numLines)
@@ -238,6 +260,16 @@ const (
 	benchMaxLine  = 80   // Maximum characters in a benchmarking line
 )
 
+// Current benchmark: 30000 ns/op
+func BenchmarkBufferCoordsFromIndex(b *testing.B) {
+	buf := randBuffer(benchBufLines)
+	indexes := randIndexes(buf, b.N/2+1, benchOpLines)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.CoordsFromIndex(indexes[i])
+	}
+}
+
 // Current benchmark: 70000 ns/op (was 16000 before redisplay)
 func BenchmarkBufferDelete(b *testing.B) {
 	buf := randBuffer(benchBufLines)
@@ -276,6 +308,20 @@ func BenchmarkBufferGet(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		buf.Get(indexes[i*2], indexes[i*2+1])
+	}
+}
+
+// Current benchmark: 49000 ns/op
+func BenchmarkBufferIndexFromCoords(b *testing.B) {
+	buf := randBuffer(benchBufLines)
+	coords := make([][]int, b.N)
+	for i := 0; i < b.N; i++ {
+		coords[i] = []int{rand.Int() % benchMaxLine,
+			rand.Int() % benchBufLines}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.IndexFromCoords(coords[i][0], coords[i][1])
 	}
 }
 

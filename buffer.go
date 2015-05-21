@@ -133,6 +133,23 @@ func (b *Buffer) redisplay(begin, end int) {
 	}
 }
 
+// CoordsFromIndex returns the display coordinates of index. Coordinates may be
+// out of bounds of the buffer's current display.
+func (b *Buffer) CoordsFromIndex(index Index) (col, row int) {
+	<-b.unlock
+	row -= b.scroll
+	index = b.clip(index)
+	line := getElem(b.lines, index.Line).Value.(lineInfo)
+	for e := b.dLines.Front(); e != line.disp; e = e.Next() {
+		row++
+	}
+	col = len(expand(line.text[:index.Char], b.tabWidth))
+	row += col / b.cols
+	col %= b.cols
+	b.unlock <- 1
+	return
+}
+
 // Delete removes the text in the buffer between begin and end.
 func (b *Buffer) Delete(begin, end Index) {
 	<-b.unlock
@@ -249,6 +266,49 @@ func (b *Buffer) Get(begin, end Index) string {
 	s := b.get(begin, end)
 	b.unlock <- 1
 	return s
+}
+
+// IndexFromCoords returns the closest index to the given display coordinates.
+func (b *Buffer) IndexFromCoords(col, row int) Index {
+	<-b.unlock
+
+	// clip values
+	if col < 0 {
+		col = 0
+	}
+	row += b.scroll + 1
+	if row > b.dLines.Len() {
+		row = b.dLines.Len()
+	} else if row < 1 {
+		row = 1
+	}
+
+	// get line
+	disp := getElem(b.dLines, row)
+	for disp.Value.(fragList).cont {
+		disp = disp.Prev()
+		col += b.cols
+	}
+	index := Index{1, 0}
+	var e *list.Element
+	for e = b.lines.Front(); e.Value.(lineInfo).disp != disp; e = e.Next() {
+		index.Line++
+	}
+
+	// get char
+	for _, ch := range e.Value.(lineInfo).text {
+		col--
+		if ch == '\t' {
+			col -= b.tabWidth - 1
+		}
+		if col < 0 {
+			break
+		}
+		index.Char++
+	}
+
+	b.unlock <- 1
+	return index
 }
 
 // IndexFromMark returns the current index of the mark with ID id, or an error
