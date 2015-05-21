@@ -148,11 +148,11 @@ func (b *Buffer) Delete(begin, end Index) {
 		for i := 0; i < n; i++ {
 			elem = elem.Next()
 			e := b.lines.Remove(elem.Prev()).(lineInfo).disp
-			for e != nil {
-				e = e.Next()
-				if e != nil && e.Value.(fragList).cont {
-					b.dLines.Remove(e)
-				} else {
+			for {
+				next := e.Next()
+				b.dLines.Remove(e)
+				e = next
+				if e == nil || !e.Value.(fragList).cont {
 					break
 				}
 			}
