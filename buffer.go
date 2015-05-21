@@ -184,7 +184,8 @@ func (b *Buffer) Delete(begin, end Index) {
 
 	// update marks
 	for k, v := range b.marks {
-		if v.Line >= begin.Line && v.Char >= begin.Char {
+		if v.Line > begin.Line ||
+			(v.Line == begin.Line && v.Char >= begin.Char) {
 			if v.Line <= end.Line {
 				if v.Line < end.Line || v.Char <= end.Char {
 					v = begin
