@@ -297,12 +297,14 @@ func (b *Buffer) IndexFromCoords(col, row int) Index {
 	}
 
 	// get char
+	c := 0
 	for _, ch := range e.Value.(lineInfo).text {
-		col--
 		if ch == '\t' {
-			col -= b.tabWidth - 1
+			c += b.tabWidth - c%b.tabWidth
+		} else {
+			c++
 		}
-		if col < 0 {
+		if c > col {
 			break
 		}
 		index.Char++
