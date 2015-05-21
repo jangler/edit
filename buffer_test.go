@@ -149,6 +149,55 @@ func TestBufferShiftIndex(t *testing.T) {
 	}
 }
 
+func TestBufferMark(t *testing.T) {
+	// invalid ID
+	b := NewBuffer()
+	if _, err := b.IndexFromMark(0); err == nil {
+		t.Errorf("IndexFromMark did not return error for invalid ID")
+	}
+
+	// valid ID
+	b.Mark(b.End(), 0)
+	mark, _ := b.IndexFromMark(0)
+	if want := (Index{1, 0}); mark != want {
+		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	}
+
+	// insertion
+	b.Insert(b.End(), "hello")
+	mark, _ = b.IndexFromMark(0)
+	if want := (Index{1, 5}); mark != want {
+		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	}
+	b.Insert(b.End(), "\nhi")
+	mark, _ = b.IndexFromMark(0)
+	if want := (Index{2, 2}); mark != want {
+		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	}
+	b.Insert(Index{1, 0}, "\n")
+	mark, _ = b.IndexFromMark(0)
+	if want := (Index{3, 2}); mark != want {
+		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	}
+
+	// deletion
+	b.Delete(Index{1, 0}, Index{2, 0})
+	mark, _ = b.IndexFromMark(0)
+	if want := (Index{2, 2}); mark != want {
+		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	}
+	b.Delete(Index{1, 0}, Index{2, 1})
+	mark, _ = b.IndexFromMark(0)
+	if want := (Index{1, 1}); mark != want {
+		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	}
+	b.Delete(Index{1, 0}, b.End())
+	mark, _ = b.IndexFromMark(0)
+	if want := (Index{1, 0}); mark != want {
+		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	}
+}
+
 func randBuffer(numLines int) *Buffer {
 	buf := NewBuffer()
 	lines := make([]string, numLines)

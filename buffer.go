@@ -4,6 +4,7 @@ package edit
 import (
 	"container/list"
 	"crypto/md5"
+	"fmt"
 	"strings"
 )
 
@@ -44,6 +45,7 @@ type Buffer struct {
 	cols, rows int // Display size
 	tabWidth   int
 	scroll     int
+	marks      map[int]Index
 }
 
 // NewBuffer initializes and returns a new empty Buffer.
@@ -59,6 +61,7 @@ func NewBuffer() *Buffer {
 		rows:     25,
 		tabWidth: 8,
 		scroll:   0,
+		marks:    make(map[int]Index),
 	}
 	dLine := fragList{list.New(), false}
 	dLine.PushBack(Fragment{})
@@ -161,6 +164,24 @@ func (b *Buffer) Delete(begin, end Index) {
 			elem.Value.(lineInfo).text[end.Char:], elem.Value.(lineInfo).disp}
 	}
 	b.redisplay(begin.Line, begin.Line)
+
+	// update marks
+	for k, v := range b.marks {
+		if v.Line >= begin.Line && v.Char >= begin.Char {
+			if v.Line <= end.Line {
+				if v.Line < end.Line || v.Char <= end.Char {
+					v = begin
+				} else {
+					v.Line = begin.Line
+					v.Char += begin.Char - end.Char
+				}
+			} else {
+				v.Line -= end.Line - begin.Line
+			}
+		}
+		b.marks[k] = v
+	}
+
 	b.unlock <- 1
 }
 
@@ -230,6 +251,18 @@ func (b *Buffer) Get(begin, end Index) string {
 	return s
 }
 
+// IndexFromMark returns the current index of the mark with ID id, or an error
+// if no mark with ID id is set.
+func (b *Buffer) IndexFromMark(id int) (Index, error) {
+	<-b.unlock
+	index, ok := b.marks[id]
+	b.unlock <- 1
+	if ok {
+		return index, nil
+	}
+	return index, fmt.Errorf("IndexFromMark: no mark with ID: %d", id)
+}
+
 // Insert inserts text into the buffer at index.
 func (b *Buffer) Insert(index Index, text string) {
 	<-b.unlock
@@ -261,6 +294,31 @@ func (b *Buffer) Insert(index Index, text string) {
 		}
 	}
 	b.redisplay(index.Line, index.Line+len(lines)-1)
+
+	// update marks
+	for k, v := range b.marks {
+		if v.Line == index.Line && v.Char >= index.Char {
+			if len(lines) == 1 {
+				v.Char += len(lines[0])
+			} else {
+				v.Char = len(lines[len(lines)-1])
+			}
+			v.Line += len(lines) - 1
+		} else if v.Line > index.Line {
+			v.Line += len(lines) - 1
+		}
+		b.marks[k] = v
+	}
+
+	b.unlock <- 1
+}
+
+// Mark sets a mark with ID id at index. The mark's position is automatically
+// updated when the buffer contents are modified. If a mark with ID id already
+// exists, its position is updated.
+func (b *Buffer) Mark(index Index, id int) {
+	<-b.unlock
+	b.marks[id] = b.clip(index)
 	b.unlock <- 1
 }
 
