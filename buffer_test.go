@@ -87,7 +87,8 @@ func TestBufferDisplay(t *testing.T) {
 	b.DisplayLines() // Shouldn't panic if there's no size or text
 	iRule, _ := NewRule(`\b\w*i\w*\b`, "", 0)
 	b.SetSyntax([]Rule{iRule})
-	b.SetSize(0, 1) // Make sure 0 cols is ok--should correct to 1
+	b.SetSize(0, 1)  // Make sure 0 cols is ok--should correct to 1
+	b.SetSize(1, -1) // Make sure -1 rows is ok--should correct to 0
 	b.SetSize(8, 9)
 	b.SetTabWidth(4)
 	b.Insert(Index{1, 0},
@@ -152,49 +153,42 @@ func TestBufferShiftIndex(t *testing.T) {
 func TestBufferMark(t *testing.T) {
 	// invalid ID
 	b := NewBuffer()
-	if _, err := b.IndexFromMark(0); err == nil {
-		t.Errorf("IndexFromMark did not return error for invalid ID")
+	if want, got := (Index{0, 0}), b.IndexFromMark(0); want != got {
+		t.Errorf("IndexFromMark() == %v; want %v", got, want)
 	}
 
 	// valid ID
 	b.Mark(b.End(), 0)
-	mark, _ := b.IndexFromMark(0)
-	if want := (Index{1, 0}); mark != want {
-		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	if want, got := (Index{1, 0}), b.IndexFromMark(0); want != got {
+		t.Errorf("IndexFromMark() == %v; want %v", got, want)
 	}
 
 	// insertion
 	b.Insert(b.End(), "hello")
-	mark, _ = b.IndexFromMark(0)
-	if want := (Index{1, 5}); mark != want {
-		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	if want, got := (Index{1, 5}), b.IndexFromMark(0); want != got {
+		t.Errorf("IndexFromMark() == %v; want %v", got, want)
 	}
 	b.Insert(b.End(), "\nhi")
-	mark, _ = b.IndexFromMark(0)
-	if want := (Index{2, 2}); mark != want {
-		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	if want, got := (Index{2, 2}), b.IndexFromMark(0); want != got {
+		t.Errorf("IndexFromMark() == %v; want %v", got, want)
 	}
 	b.Insert(Index{1, 0}, "\n")
-	mark, _ = b.IndexFromMark(0)
-	if want := (Index{3, 2}); mark != want {
-		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	if want, got := (Index{3, 2}), b.IndexFromMark(0); want != got {
+		t.Errorf("IndexFromMark() == %v; want %v", got, want)
 	}
 
 	// deletion
 	b.Delete(Index{1, 0}, Index{2, 0})
-	mark, _ = b.IndexFromMark(0)
-	if want := (Index{2, 2}); mark != want {
-		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	if want, got := (Index{2, 2}), b.IndexFromMark(0); want != got {
+		t.Errorf("IndexFromMark() == %v; want %v", got, want)
 	}
 	b.Delete(Index{1, 0}, Index{2, 1})
-	mark, _ = b.IndexFromMark(0)
-	if want := (Index{1, 1}); mark != want {
-		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	if want, got := (Index{1, 1}), b.IndexFromMark(0); want != got {
+		t.Errorf("IndexFromMark() == %v; want %v", got, want)
 	}
 	b.Delete(Index{1, 0}, b.End())
-	mark, _ = b.IndexFromMark(0)
-	if want := (Index{1, 0}); mark != want {
-		t.Errorf("IndexFromMark returned %v; want %v", mark, want)
+	if want, got := (Index{1, 0}), b.IndexFromMark(0); want != got {
+		t.Errorf("IndexFromMark() == %v; want %v", got, want)
 	}
 }
 

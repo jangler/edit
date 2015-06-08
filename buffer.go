@@ -4,7 +4,6 @@ package edit
 import (
 	"container/list"
 	"crypto/md5"
-	"fmt"
 	"strings"
 )
 
@@ -206,6 +205,7 @@ func (b *Buffer) Delete(begin, end Index) {
 // DisplayLines returns a slice of Lists of Fragments, one list for each line
 // on the buffer's current display.
 func (b *Buffer) DisplayLines() []*list.List {
+	<-b.unlock
 	lines := make([]*list.List, b.rows)
 	dLine := getElem(b.dLines, b.scroll+1)
 	for i := range lines {
@@ -218,6 +218,7 @@ func (b *Buffer) DisplayLines() []*list.List {
 		}
 		lines[i] = fragments
 	}
+	b.unlock <- 1
 	return lines
 }
 
@@ -314,16 +315,13 @@ func (b *Buffer) IndexFromCoords(col, row int) Index {
 	return index
 }
 
-// IndexFromMark returns the current index of the mark with ID id, or an error
-// if no mark with ID id is set.
-func (b *Buffer) IndexFromMark(id int) (Index, error) {
+// IndexFromMark returns the current index of the mark with ID id, or a
+// zero-value index if no mark with ID id is set.
+func (b *Buffer) IndexFromMark(id int) Index {
 	<-b.unlock
-	index, ok := b.marks[id]
+	index := b.marks[id]
 	b.unlock <- 1
-	if ok {
-		return index, nil
-	}
-	return index, fmt.Errorf("IndexFromMark: no mark with ID: %d", id)
+	return index
 }
 
 // Insert inserts text into the buffer at index.
@@ -437,6 +435,10 @@ func (b *Buffer) SetSize(cols, rows int) {
 	if b.cols < 1 {
 		b.cols = 1
 	}
+	if b.rows < 0 {
+		b.rows = 0
+	}
+	// TODO: Make sure scroll isn't out of bounds now.
 	// TODO:
 	// This also needs to recompute display lines, but it doesn't need to
 	// re-split them into fragments, so it might be faster to use a different
