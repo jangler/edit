@@ -3,17 +3,11 @@ package edit
 import "testing"
 
 func TestNewRule(t *testing.T) {
-	if _, err := NewRule("b", "", 0); err != nil {
-		t.Error("NewRule returned error for valid expressions")
+	if _, err := NewRule("b", 0); err != nil {
+		t.Error("NewRule returned error for valid pattern")
 	}
-	if _, err := NewRule("b", "e", 0); err != nil {
-		t.Error("NewRule returned error for valid expressions")
-	}
-	if _, err := NewRule("b\\", "", 0); err == nil {
-		t.Error("NewRule did not return error for invalid begin expr")
-	}
-	if _, err := NewRule("b", "e\\", 0); err == nil {
-		t.Error("NewRule did not return error for invalid end expr")
+	if _, err := NewRule("b\\", 0); err == nil {
+		t.Error("NewRule did not return error for invalid pattern")
 	}
 }
 
@@ -38,7 +32,7 @@ func TestSyntaxSplit(t *testing.T) {
 	}
 
 	// Test begin-only rule
-	keywordRule, _ := NewRule("(var|const)", "", 0)
+	keywordRule, _ := NewRule("(var|const)", 0)
 	rules = []Rule{keywordRule}
 	fragments := []Fragment{{"var", 0}, {" def ", noneTag}, {"const", 0}}
 	c = rules.split("var def const")
@@ -52,10 +46,10 @@ func TestSyntaxSplit(t *testing.T) {
 	}
 
 	// Test begin and end rules
-	commentRule, _ := NewRule(`/\*`, `\*/`, 1)
+	commentRule, _ := NewRule(`/\*.+?\*/`, 1)
 	rules = []Rule{keywordRule, commentRule}
 	fragments = []Fragment{{"var", 0}, {"/*var*/", 1}, {"const", 0},
-		{"/*const", noneTag}}
+		{"/*", noneTag}, {"const", 0}}
 	c = rules.split("var/*var*/const/*const")
 	for _, frag := range fragments {
 		if want, got := frag, <-c; want != got {
@@ -81,15 +75,15 @@ var (
 	// Simplified set of rules for highlighting go source code
 	keywordRule, _ = NewRule(`\b(break|case|chan|const|continue|default|`+
 		`defer|else|fallthrough|for|func|go|goto|if|import|interface|map|`+
-		`package|range|return|select|struct|switch|type|var)\b`, "", 0)
-	numRule, _     = NewRule(`\b\d+(\.\d+)?\b`, "", 1)
-	stringRule, _  = NewRule(`"`, `"`, 1)
-	commentRule, _ = NewRule(`//`, "($|\n)", 2)
+		`package|range|return|select|struct|switch|type|var)\b`, 0)
+	numRule, _     = NewRule(`\b\d+(\.\d+)?\b`, 1)
+	stringRule, _  = NewRule(`".+?"`, 1)
+	commentRule, _ = NewRule(`//.+?($|\n)`, 2)
 
 	goRules syntax = []Rule{keywordRule, numRule, stringRule, commentRule}
 )
 
-// Current benchmark: 350000 ns/op
+// Current benchmark: 430000 ns/op
 func BenchmarkSyntaxSplit(b *testing.B) {
 	// Make sure the rules work
 	fragments := []Fragment{{"package", 0}, {" main\n\n", noneTag},

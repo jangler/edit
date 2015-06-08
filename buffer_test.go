@@ -85,7 +85,7 @@ func TestBuffer(t *testing.T) {
 func TestBufferDisplay(t *testing.T) {
 	b := NewBuffer()
 	b.DisplayLines() // Shouldn't panic if there's no size or text
-	iRule, _ := NewRule(`\b\w*i\w*\b`, "", 0)
+	iRule, _ := NewRule(`\b\w*i\w*\b`, 0)
 	b.SetSyntax([]Rule{iRule})
 	b.SetSize(0, 1)  // Make sure 0 cols is ok--should correct to 1
 	b.SetSize(1, -1) // Make sure -1 rows is ok--should correct to 0
