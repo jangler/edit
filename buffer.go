@@ -407,7 +407,7 @@ func (b *Buffer) ResetModified() {
 func (b *Buffer) Scroll(delta int) {
 	<-b.unlock
 	b.scroll += delta
-	if b.scroll < 0 {
+	if b.scroll < 0 || b.dLines.Len() < b.rows {
 		b.scroll = 0
 	} else if b.scroll+b.rows > b.dLines.Len() {
 		b.scroll = b.dLines.Len() - b.rows
