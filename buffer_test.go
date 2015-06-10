@@ -238,6 +238,79 @@ func TestBufferScroll(t *testing.T) {
 	}
 }
 
+func TestBufferUndo(t *testing.T) {
+	b := NewBuffer()
+
+	// test operations on new buffer
+	if want, got := false, b.Undo(); want != got {
+		t.Errorf("b.Undo() == %v, want %v", got, want)
+	}
+	if want, got := false, b.Redo(); want != got {
+		t.Errorf("b.Redo() == %v, want %v", got, want)
+	}
+
+	// test undo/redo single insertion
+	b.Insert(b.End(), "hello")
+	if want, got := true, b.Undo(); want != got {
+		t.Errorf("b.Undo() == %v, want %v", got, want)
+	}
+	if want, got := "", b.Get(Index{1, 0}, b.End()); want != got {
+		t.Errorf("b.Get() == %v, want %v", got, want)
+	}
+	if want, got := true, b.Redo(); want != got {
+		t.Errorf("b.Redo() == %v, want %v", got, want)
+	}
+	if want, got := "hello", b.Get(Index{1, 0}, b.End()); want != got {
+		t.Errorf("b.Get() == %v, want %v", got, want)
+	}
+
+	// test undo/redo single deletion
+	b = NewBuffer()
+	b.Insert(b.End(), "hello")
+	b.Separate()
+	b.Delete(Index{1, 1}, Index{1, 4})
+	b.Undo()
+	if want, got := "hello", b.Get(Index{1, 0}, b.End()); want != got {
+		t.Errorf("b.Get() == %v, want %v", got, want)
+	}
+	b.Redo()
+	if want, got := "ho", b.Get(Index{1, 0}, b.End()); want != got {
+		t.Errorf("b.Get() == %v, want %v", got, want)
+	}
+
+	// test group of operations
+	b = NewBuffer()
+	b.Separate()
+	b.Insert(b.End(), "hello")
+	b.Insert(b.End(), ", world!")
+	b.Separate()
+	b.Delete(Index{1, 7}, Index{1, 12})
+	b.Insert(Index{1, 7}, "there")
+	b.Separate()
+	b.Undo()
+	if want, got := "hello, world!", b.Get(Index{1, 0}, b.End()); want != got {
+		t.Errorf("b.Get() == %v, want %v", got, want)
+	}
+	b.Undo()
+	if want, got := "", b.Get(Index{1, 0}, b.End()); want != got {
+		t.Errorf("b.Get() == %v, want %v", got, want)
+	}
+	if want, got := false, b.Undo(); want != got {
+		t.Errorf("b.Undo() == %v, want %v", got, want)
+	}
+	b.Redo()
+	if want, got := "hello, world!", b.Get(Index{1, 0}, b.End()); want != got {
+		t.Errorf("b.Get() == %v, want %v", got, want)
+	}
+	b.Redo()
+	if want, got := "hello, there!", b.Get(Index{1, 0}, b.End()); want != got {
+		t.Errorf("b.Get() == %v, want %v", got, want)
+	}
+	if want, got := false, b.Redo(); want != got {
+		t.Errorf("b.Redo() == %v, want %v", got, want)
+	}
+}
+
 func randBuffer(numLines int) *Buffer {
 	buf := NewBuffer()
 	lines := make([]string, numLines)

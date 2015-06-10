@@ -33,18 +33,27 @@ type lineInfo struct {
 	disp *list.Element
 }
 
+type bufferOp struct {
+	insert     bool // if not insert, then delete
+	start, end Index
+	text       string
+}
+
+type separator struct{} // for use in undo and redo stacks
+
 // Buffer is a thread-safe text-editing buffer.
 type Buffer struct {
-	lines      *list.List // List of lineInfos
-	dLines     *list.List // Display lines; list of fragLists
-	unlock     chan int   // Used as mutex
-	strings    []string   // For misc. use *only* when locked
+	lines      *list.List // list of lineInfos
+	dLines     *list.List // display lines; list of fragLists
+	unlock     chan int   // used as mutex
+	strings    []string   // for misc. use *only* when locked
 	checksum   [md5.Size]byte
 	syntax     syntax
-	cols, rows int // Display size
+	cols, rows int // display size
 	tabWidth   int
 	scroll     int
 	marks      map[int]Index
+	undo, redo *list.List // undo and redo stacks
 }
 
 // NewBuffer initializes and returns a new empty Buffer.
@@ -61,6 +70,8 @@ func NewBuffer() *Buffer {
 		tabWidth: 8,
 		scroll:   0,
 		marks:    make(map[int]Index),
+		undo:     list.New(),
+		redo:     list.New(),
 	}
 	dLine := fragList{list.New(), false}
 	dLine.PushBack(Fragment{})
@@ -149,14 +160,9 @@ func (b *Buffer) CoordsFromIndex(index Index) (col, row int) {
 	return
 }
 
-// Delete removes the text in the buffer between begin and end.
-func (b *Buffer) Delete(begin, end Index) {
-	<-b.unlock
-	if end.Less(begin) || end == begin {
-		b.unlock <- 1
-		return
-	}
-	begin, end = b.clip(begin), b.clip(end)
+// delete_ performs a deletion without modifying the undo stack.
+func (b *Buffer) delete(begin, end Index) {
+	// perform deletion
 	elem := getElem(b.lines, begin.Line)
 	if n := end.Line - begin.Line; n == 0 {
 		text := elem.Value.(lineInfo).text
@@ -198,7 +204,18 @@ func (b *Buffer) Delete(begin, end Index) {
 		}
 		b.marks[k] = v
 	}
+}
 
+// Delete removes the text in the buffer between begin and end.
+func (b *Buffer) Delete(begin, end Index) {
+	<-b.unlock
+	if end.Less(begin) || end == begin {
+		b.unlock <- 1
+		return
+	}
+	begin, end = b.clip(begin), b.clip(end)
+	b.undo.PushBack(bufferOp{false, begin, end, b.get(begin, end)})
+	b.delete(begin, end)
 	b.unlock <- 1
 }
 
@@ -324,10 +341,8 @@ func (b *Buffer) IndexFromMark(id int) Index {
 	return index
 }
 
-// Insert inserts text into the buffer at index.
-func (b *Buffer) Insert(index Index, text string) {
-	<-b.unlock
-	index = b.clip(index)
+// insert performs and inseration without undo stack modification.
+func (b *Buffer) insert(index Index, text string) {
 	elem := getElem(b.lines, index.Line)
 	lines := strings.Split(text, "\n")
 	if len(lines) == 1 {
@@ -370,7 +385,15 @@ func (b *Buffer) Insert(index Index, text string) {
 		}
 		b.marks[k] = v
 	}
+}
 
+// Insert inserts text into the buffer at index.
+func (b *Buffer) Insert(index Index, text string) {
+	<-b.unlock
+	index = b.clip(index)
+	b.insert(index, text)
+	b.undo.PushBack(bufferOp{true, index,
+		b.shiftIndex(index, len(text)), text})
 	b.unlock <- 1
 }
 
@@ -392,6 +415,37 @@ func (b *Buffer) Modified() bool {
 	val := checksum != b.checksum
 	b.unlock <- 1
 	return val
+}
+
+// Redo redoes the last undone sequence of insertions and deletions and returns
+// true, or returns false if the redo stack is empty.
+func (b *Buffer) Redo() bool {
+	<-b.unlock
+	if b.redo.Len() > 0 {
+		opRedone := false
+		loop := true
+		for loop && b.redo.Len() > 0 {
+			switch v := b.redo.Remove(b.redo.Back()); v := v.(type) {
+			case bufferOp:
+				if v.insert {
+					b.insert(v.start, v.text)
+				} else {
+					b.delete(v.start, v.end)
+				}
+				opRedone = true
+				b.undo.PushBack(v)
+			case separator:
+				if opRedone {
+					loop = false
+				}
+				b.undo.PushBack(v)
+			}
+		}
+		b.unlock <- 1
+		return opRedone
+	}
+	b.unlock <- 1
+	return false
 }
 
 // ResetModified sets the comparison point for future calls to Modified to the
@@ -426,6 +480,18 @@ func (b *Buffer) ScrollFraction() float64 {
 	}
 	b.unlock <- 1
 	return f
+}
+
+// Separate inserts a separator onto the undo stack in order to delimit
+// sequences of insertions and deletions.
+func (b *Buffer) Separate() {
+	<-b.unlock
+	if b.undo.Len() != 0 {
+		if _, ok := b.undo.Back().Value.(bufferOp); ok {
+			b.undo.PushBack(separator{})
+		}
+	}
+	b.unlock <- 1
 }
 
 // SetSize sets the display size of the buffer.
@@ -471,10 +537,8 @@ func (b *Buffer) SetTabWidth(cols int) {
 	b.unlock <- 1
 }
 
-// ShiftIndex returns index shifted right by chars. If chars is negative, index
-// is shifted left.
-func (b *Buffer) ShiftIndex(index Index, chars int) Index {
-	<-b.unlock
+// shiftIndex shitfs and index without locking the buffer.
+func (b *Buffer) shiftIndex(index Index, chars int) Index {
 	index = b.clip(index)
 	elem := getElem(b.lines, index.Line)
 	for chars < 0 {
@@ -514,8 +578,47 @@ func (b *Buffer) ShiftIndex(index Index, chars int) Index {
 			chars = 0
 		}
 	}
+	return index
+}
+
+// ShiftIndex returns index shifted right by chars. If chars is negative, index
+// is shifted left.
+func (b *Buffer) ShiftIndex(index Index, chars int) Index {
+	<-b.unlock
+	index = b.shiftIndex(index, chars)
 	b.unlock <- 1
 	return index
+}
+
+// Undo undoes the last sequence of insertions and deletions and returns true,
+// or returns false if the redo stack is empty.
+func (b *Buffer) Undo() bool {
+	<-b.unlock
+	if b.undo.Len() > 0 {
+		opUndone := false
+		loop := true
+		for loop && b.undo.Len() > 0 {
+			switch v := b.undo.Remove(b.undo.Back()); v := v.(type) {
+			case bufferOp:
+				if v.insert {
+					b.delete(v.start, v.end)
+				} else {
+					b.insert(v.start, v.text)
+				}
+				opUndone = true
+				b.redo.PushBack(v)
+			case separator:
+				if opUndone {
+					loop = false
+				}
+				b.redo.PushBack(v)
+			}
+		}
+		b.unlock <- 1
+		return opUndone
+	}
+	b.unlock <- 1
+	return false
 }
 
 // Index denotes a position in a Buffer.
