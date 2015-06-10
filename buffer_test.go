@@ -278,7 +278,7 @@ func TestBufferUndo(t *testing.T) {
 		t.Errorf("b.Get() == %v, want %v", got, want)
 	}
 
-	// test group of operations
+	// test groups of operations and marks
 	b = NewBuffer()
 	b.Separate()
 	b.Insert(b.End(), "hello")
@@ -288,9 +288,12 @@ func TestBufferUndo(t *testing.T) {
 	b.Delete(Index{1, 7}, Index{1, 12})
 	b.Insert(Index{1, 7}, "there")
 	b.Separate()
-	b.Undo()
+	b.Undo(1)
 	if want, got := "hello, world!", b.Get(Index{1, 0}, b.End()); want != got {
 		t.Errorf("b.Get() == %v, want %v", got, want)
+	}
+	if want, got := (Index{1, 12}), b.IndexFromMark(1); want != got {
+		t.Errorf("b.IndexFromMark() == %v, want %v", got, want)
 	}
 	b.Undo()
 	if want, got := "", b.Get(Index{1, 0}, b.End()); want != got {
@@ -303,9 +306,12 @@ func TestBufferUndo(t *testing.T) {
 	if want, got := "hello, world!", b.Get(Index{1, 0}, b.End()); want != got {
 		t.Errorf("b.Get() == %v, want %v", got, want)
 	}
-	b.Redo()
+	b.Redo(1)
 	if want, got := "hello, there!", b.Get(Index{1, 0}, b.End()); want != got {
 		t.Errorf("b.Get() == %v, want %v", got, want)
+	}
+	if want, got := (Index{1, 12}), b.IndexFromMark(1); want != got {
+		t.Errorf("b.IndexFromMark() == %v, want %v", got, want)
 	}
 	if want, got := false, b.Redo(); want != got {
 		t.Errorf("b.Redo() == %v, want %v", got, want)

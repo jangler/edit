@@ -237,6 +237,7 @@ func (b *Buffer) Delete(begin, end Index) {
 	if !merged {
 		b.undo.PushBack(bufferOp{false, begin, end, b.get(begin, end)})
 	}
+	b.redo.Init()
 
 	b.delete(begin, end)
 	b.unlock <- 1
@@ -439,6 +440,8 @@ func (b *Buffer) Insert(index Index, text string) {
 		b.undo.PushBack(bufferOp{true, index, b.shiftIndex(index, len(text)),
 			text})
 	}
+	b.redo.Init()
+
 	b.unlock <- 1
 }
 
@@ -463,8 +466,9 @@ func (b *Buffer) Modified() bool {
 }
 
 // Redo redoes the last undone sequence of insertions and deletions and returns
-// true, or returns false if the redo stack is empty.
-func (b *Buffer) Redo() bool {
+// true, or returns false if the redo stack is empty. The given marks are
+// positioned at the index of the redone operation.
+func (b *Buffer) Redo(mark ...int) bool {
 	<-b.unlock
 	if b.redo.Len() > 0 {
 		opRedone := false
@@ -474,8 +478,14 @@ func (b *Buffer) Redo() bool {
 			case bufferOp:
 				if v.insert {
 					b.insert(v.start, v.text)
+					for _, id := range mark {
+						b.marks[id] = v.end
+					}
 				} else {
 					b.delete(v.start, v.end)
+					for _, id := range mark {
+						b.marks[id] = v.start
+					}
 				}
 				opRedone = true
 				b.undo.PushBack(v)
@@ -644,8 +654,9 @@ func (b *Buffer) ShiftIndex(index Index, chars int) Index {
 }
 
 // Undo undoes the last sequence of insertions and deletions and returns true,
-// or returns false if the redo stack is empty.
-func (b *Buffer) Undo() bool {
+// or returns false if the redo stack is empty. The given marks are positioned
+// at the index of the undone operation.
+func (b *Buffer) Undo(mark ...int) bool {
 	<-b.unlock
 	if b.undo.Len() > 0 {
 		opUndone := false
@@ -655,8 +666,14 @@ func (b *Buffer) Undo() bool {
 			case bufferOp:
 				if v.insert {
 					b.delete(v.start, v.end)
+					for _, id := range mark {
+						b.marks[id] = v.start
+					}
 				} else {
 					b.insert(v.start, v.text)
+					for _, id := range mark {
+						b.marks[id] = v.end
+					}
 				}
 				opUndone = true
 				b.redo.PushBack(v)
