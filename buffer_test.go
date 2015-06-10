@@ -329,6 +329,12 @@ func TestBufferUndo(t *testing.T) {
 	if want, got := 0, b.undo.Len(); want != got {
 		t.Errorf("b.undo.Len() == %v, want %v", got, want)
 	}
+
+	// test reset
+	b.ResetUndo()
+	if want, got := false, b.Redo(); want != got {
+		t.Errorf("b.Redo() == %v, want %v", got, want)
+	}
 }
 
 func randBuffer(numLines int) *Buffer {

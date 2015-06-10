@@ -502,6 +502,14 @@ func (b *Buffer) ResetModified() {
 	b.unlock <- 1
 }
 
+// ResetUndo clears the buffer's undo and redo stacks.
+func (b *Buffer) ResetUndo() {
+	<-b.unlock
+	b.undo.Init()
+	b.redo.Init()
+	b.unlock <- 1
+}
+
 // Scroll scrolls the buffer's display down by delta lines.
 func (b *Buffer) Scroll(delta int) {
 	<-b.unlock
