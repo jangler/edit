@@ -214,7 +214,30 @@ func (b *Buffer) Delete(begin, end Index) {
 		return
 	}
 	begin, end = b.clip(begin), b.clip(end)
-	b.undo.PushBack(bufferOp{false, begin, end, b.get(begin, end)})
+
+	// insert undo operation (merge with previous deletion if possible)
+	merged := false
+	if b.undo.Len() != 0 {
+		if op, ok := b.undo.Back().Value.(bufferOp); ok && !op.insert {
+			if op.start == end {
+				b.undo.Remove(b.undo.Back())
+				op.start = begin
+				op.text = b.get(begin, end) + op.text
+				b.undo.PushBack(op)
+				merged = true
+			} else if op.end == begin {
+				b.undo.Remove(b.undo.Back())
+				op.end = end
+				op.text += b.get(begin, end)
+				b.undo.PushBack(op)
+				merged = true
+			}
+		}
+	}
+	if !merged {
+		b.undo.PushBack(bufferOp{false, begin, end, b.get(begin, end)})
+	}
+
 	b.delete(begin, end)
 	b.unlock <- 1
 }
@@ -392,8 +415,30 @@ func (b *Buffer) Insert(index Index, text string) {
 	<-b.unlock
 	index = b.clip(index)
 	b.insert(index, text)
-	b.undo.PushBack(bufferOp{true, index,
-		b.shiftIndex(index, len(text)), text})
+
+	// insert undo operation (merge with previous insertion if possible)
+	merged := false
+	if b.undo.Len() != 0 {
+		if op, ok := b.undo.Back().Value.(bufferOp); ok && op.insert {
+			if op.start == index {
+				b.undo.Remove(b.undo.Back())
+				op.end = b.shiftIndex(op.end, len(text))
+				op.text = text + op.text
+				b.undo.PushBack(op)
+				merged = true
+			} else if op.end == index {
+				b.undo.Remove(b.undo.Back())
+				op.end = b.shiftIndex(op.end, len(text))
+				op.text += text
+				b.undo.PushBack(op)
+				merged = true
+			}
+		}
+	}
+	if !merged {
+		b.undo.PushBack(bufferOp{true, index, b.shiftIndex(index, len(text)),
+			text})
+	}
 	b.unlock <- 1
 }
 

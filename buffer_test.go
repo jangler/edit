@@ -284,6 +284,7 @@ func TestBufferUndo(t *testing.T) {
 	b.Insert(b.End(), "hello")
 	b.Insert(b.End(), ", world!")
 	b.Separate()
+	b.Separate()
 	b.Delete(Index{1, 7}, Index{1, 12})
 	b.Insert(Index{1, 7}, "there")
 	b.Separate()
@@ -308,6 +309,25 @@ func TestBufferUndo(t *testing.T) {
 	}
 	if want, got := false, b.Redo(); want != got {
 		t.Errorf("b.Redo() == %v, want %v", got, want)
+	}
+
+	// test operation merging
+	b = NewBuffer()
+	b.Insert(b.End(), "b")
+	b.Insert(Index{1, 0}, "a")
+	b.Insert(b.End(), "c")
+	if want, got := 1, b.undo.Len(); want != got {
+		t.Errorf("b.undo.Len() == %v, want %v", got, want)
+	}
+	b.Delete(Index{1, 1}, Index{1, 2})
+	b.Delete(Index{1, 2}, Index{1, 3})
+	b.Delete(Index{1, 0}, Index{1, 1})
+	if want, got := 2, b.undo.Len(); want != got {
+		t.Errorf("b.undo.Len() == %v, want %v", got, want)
+	}
+	b.Undo()
+	if want, got := 0, b.undo.Len(); want != got {
+		t.Errorf("b.undo.Len() == %v, want %v", got, want)
 	}
 }
 
