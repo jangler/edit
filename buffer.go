@@ -29,14 +29,14 @@ type fragList struct {
 }
 
 type lineInfo struct {
-	text string
+	text []rune
 	disp *list.Element
 }
 
 type bufferOp struct {
 	insert     bool // if not insert, then delete
 	start, end Index
-	text       string
+	text       []rune
 }
 
 type separator struct{} // for use in undo and redo stacks
@@ -75,7 +75,7 @@ func NewBuffer() *Buffer {
 	}
 	dLine := fragList{list.New(), false}
 	dLine.PushBack(Fragment{})
-	b.lines.PushBack(lineInfo{"", b.dLines.PushBack(dLine)})
+	b.lines.PushBack(lineInfo{[]rune(""), b.dLines.PushBack(dLine)})
 	b.unlock <- 1
 	return &b
 }
@@ -111,23 +111,24 @@ func (b *Buffer) redisplay(begin, end int) {
 		// Insert new display lines
 		prev := first
 		dLine, col := fragList{list.New(), false}, 0
-		for frag := range b.syntax.split(elem.Value.(lineInfo).text) {
-			text := expand(frag.Text, b.tabWidth)
+		for frag := range b.syntax.split(string(elem.Value.(lineInfo).text)) {
+			text := expand([]rune(frag.Text), b.tabWidth)
 			for {
 				if len(text)+col <= b.cols {
-					dLine.PushBack(Fragment{text, frag.Tag})
+					dLine.PushBack(Fragment{string(text), frag.Tag})
 					col += len(text)
-					text = ""
+					text = text[:0]
 				} else {
 					if col < b.cols {
-						dLine.PushBack(Fragment{text[:b.cols-col], frag.Tag})
+						dLine.PushBack(Fragment{string(text[:b.cols-col]),
+							frag.Tag})
 					}
 					prev = b.dLines.InsertAfter(dLine, prev)
 					dLine = fragList{list.New(), true}
 					text = text[b.cols-col:]
 					col = 0
 				}
-				if text == "" {
+				if len(text) == 0 {
 					break
 				}
 			}
@@ -166,7 +167,7 @@ func (b *Buffer) delete(begin, end Index) {
 	elem := getElem(b.lines, begin.Line)
 	if n := end.Line - begin.Line; n == 0 {
 		text := elem.Value.(lineInfo).text
-		elem.Value = lineInfo{text[:begin.Char] + text[end.Char:],
+		elem.Value = lineInfo{append(text[:begin.Char], text[end.Char:]...),
 			elem.Value.(lineInfo).disp}
 	} else {
 		firstLine := elem.Value.(lineInfo).text
@@ -182,8 +183,9 @@ func (b *Buffer) delete(begin, end Index) {
 				}
 			}
 		}
-		elem.Value = lineInfo{firstLine[:begin.Char] +
-			elem.Value.(lineInfo).text[end.Char:], elem.Value.(lineInfo).disp}
+		elem.Value = lineInfo{append(firstLine[:begin.Char],
+			elem.Value.(lineInfo).text[end.Char:]...),
+			elem.Value.(lineInfo).disp}
 	}
 	b.redisplay(begin.Line, begin.Line)
 
@@ -214,6 +216,7 @@ func (b *Buffer) Delete(begin, end Index) {
 		return
 	}
 	begin, end = b.clip(begin), b.clip(end)
+	runes := []rune(b.get(begin, end))
 
 	// insert undo operation (merge with previous deletion if possible)
 	merged := false
@@ -222,20 +225,20 @@ func (b *Buffer) Delete(begin, end Index) {
 			if op.start == end {
 				b.undo.Remove(b.undo.Back())
 				op.start = begin
-				op.text = b.get(begin, end) + op.text
+				op.text = append(runes, op.text...)
 				b.undo.PushBack(op)
 				merged = true
 			} else if op.end == begin {
 				b.undo.Remove(b.undo.Back())
 				op.end = end
-				op.text += b.get(begin, end)
+				op.text = append(op.text, runes...)
 				b.undo.PushBack(op)
 				merged = true
 			}
 		}
 	}
 	if !merged {
-		b.undo.PushBack(bufferOp{false, begin, end, b.get(begin, end)})
+		b.undo.PushBack(bufferOp{false, begin, end, runes})
 	}
 	b.redo.Init()
 
@@ -291,7 +294,7 @@ func (b *Buffer) get(begin, end Index) string {
 	lines := b.strings[:n]
 	elem := getElem(b.lines, begin.Line)
 	for i := 0; i < n; i++ {
-		lines[i] = elem.Value.(lineInfo).text
+		lines[i] = string(elem.Value.(lineInfo).text)
 		elem = elem.Next()
 	}
 	if n > 1 {
@@ -371,8 +374,8 @@ func (b *Buffer) insert(index Index, text string) {
 	lines := strings.Split(text, "\n")
 	if len(lines) == 1 {
 		li := elem.Value.(lineInfo)
-		elem.Value = lineInfo{li.text[:index.Char] + lines[0] +
-			li.text[index.Char:], li.disp}
+		elem.Value = lineInfo{[]rune(string(li.text[:index.Char]) + lines[0] +
+			string(li.text[index.Char:])), li.disp}
 	} else {
 		firstText := elem.Value.(lineInfo).text
 		disp := elem.Value.(lineInfo).disp
@@ -382,14 +385,15 @@ func (b *Buffer) insert(index Index, text string) {
 		for i, line := range lines {
 			if i == 0 {
 				li := elem.Value.(lineInfo)
-				elem.Value = lineInfo{firstText[:index.Char] + line, li.disp}
+				elem.Value = lineInfo{append(firstText[:index.Char],
+					[]rune(line)...), li.disp}
 			} else if i == len(lines)-1 {
 				disp = b.dLines.InsertAfter(fragList{list.New(), false}, disp)
-				elem = b.lines.InsertAfter(
-					lineInfo{line + firstText[index.Char:], disp}, elem)
+				elem = b.lines.InsertAfter(lineInfo{append([]rune(line),
+					firstText[index.Char:]...), disp}, elem)
 			} else {
 				disp = b.dLines.InsertAfter(fragList{list.New(), false}, disp)
-				elem = b.lines.InsertAfter(lineInfo{line, disp}, elem)
+				elem = b.lines.InsertAfter(lineInfo{[]rune(line), disp}, elem)
 			}
 		}
 	}
@@ -416,6 +420,7 @@ func (b *Buffer) Insert(index Index, text string) {
 	<-b.unlock
 	index = b.clip(index)
 	b.insert(index, text)
+	runes := []rune(text)
 
 	// insert undo operation (merge with previous insertion if possible)
 	merged := false
@@ -423,22 +428,22 @@ func (b *Buffer) Insert(index Index, text string) {
 		if op, ok := b.undo.Back().Value.(bufferOp); ok && op.insert {
 			if op.start == index {
 				b.undo.Remove(b.undo.Back())
-				op.end = b.shiftIndex(op.end, len(text))
-				op.text = text + op.text
+				op.end = b.shiftIndex(op.end, len(runes))
+				op.text = append(runes, op.text...)
 				b.undo.PushBack(op)
 				merged = true
 			} else if op.end == index {
 				b.undo.Remove(b.undo.Back())
-				op.end = b.shiftIndex(op.end, len(text))
-				op.text += text
+				op.end = b.shiftIndex(op.end, len(runes))
+				op.text = append(op.text, runes...)
 				b.undo.PushBack(op)
 				merged = true
 			}
 		}
 	}
 	if !merged {
-		b.undo.PushBack(bufferOp{true, index, b.shiftIndex(index, len(text)),
-			text})
+		b.undo.PushBack(bufferOp{true, index, b.shiftIndex(index, len(runes)),
+			runes})
 	}
 	b.redo.Init()
 
@@ -477,7 +482,7 @@ func (b *Buffer) Redo(mark ...int) bool {
 			switch v := b.redo.Remove(b.redo.Back()); v := v.(type) {
 			case bufferOp:
 				if v.insert {
-					b.insert(v.start, v.text)
+					b.insert(v.start, string(v.text))
 					for _, id := range mark {
 						b.marks[id] = v.end
 					}
@@ -670,7 +675,7 @@ func (b *Buffer) Undo(mark ...int) bool {
 						b.marks[id] = v.start
 					}
 				} else {
-					b.insert(v.start, v.text)
+					b.insert(v.start, string(v.text))
 					for _, id := range mark {
 						b.marks[id] = v.end
 					}

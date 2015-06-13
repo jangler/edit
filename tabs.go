@@ -10,7 +10,7 @@ func init() {
 }
 
 // Expand tabs to spaces; tabWidth must be > 0
-func expand(s string, tabWidth int) string {
+func expand(s []rune, tabWidth int) []rune {
 	<-tabUnlock
 	if len(p) < tabWidth*len(s) {
 		p = make([]rune, tabWidth*len(s))
@@ -31,13 +31,13 @@ func expand(s string, tabWidth int) string {
 		}
 	}
 
-	s = string(p[:col])
+	s = p[:col]
 	tabUnlock <- 1
 	return s
 }
 
 // Return width of expanded string in columns; tabWidth must be > 0
-func columns(s string, tabWidth int) int {
+func columns(s []rune, tabWidth int) int {
 	col := 0
 	for _, ch := range s {
 		if ch == '\t' {
