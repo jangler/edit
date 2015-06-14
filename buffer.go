@@ -298,10 +298,10 @@ func (b *Buffer) get(begin, end Index) string {
 		elem = elem.Next()
 	}
 	if n > 1 {
-		lines[0] = lines[0][begin.Char:]
-		lines[n-1] = lines[n-1][:end.Char]
+		lines[0] = string([]rune(lines[0])[begin.Char:])
+		lines[n-1] = string([]rune(lines[n-1])[:end.Char])
 	} else {
-		lines[0] = lines[0][begin.Char:end.Char]
+		lines[0] = string([]rune(lines[0])[begin.Char:end.Char])
 	}
 	return strings.Join(lines, "\n")
 }

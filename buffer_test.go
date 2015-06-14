@@ -422,7 +422,7 @@ func BenchmarkBufferDisplayLines(b *testing.B) {
 	}
 }
 
-// Current benchmark: 43000 ns/op (21000 ns/op before []rune)
+// Current benchmark: 48000 ns/op (21000 ns/op before []rune)
 func BenchmarkBufferGet(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	indexes := randIndexes(buf, b.N, benchOpLines)
@@ -448,7 +448,7 @@ func BenchmarkBufferIndexFromCoords(b *testing.B) {
 	}
 }
 
-// Current benchmark: 270000 ns/op (200000 ns/op before []rune)
+// Current benchmark: 290000 ns/op (200000 ns/op before []rune)
 func BenchmarkBufferInsert(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	indexes := randIndexes(buf, b.N, benchOpLines)
@@ -466,7 +466,7 @@ func BenchmarkBufferInsert(b *testing.B) {
 	}
 }
 
-// Current benchmark: 4200000 ns/op (1500000 ns/op before []rune)
+// Current benchmark: 4400000 ns/op (1500000 ns/op before []rune)
 func BenchmarkBufferModified(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	b.ResetTimer()
@@ -475,7 +475,7 @@ func BenchmarkBufferModified(b *testing.B) {
 	}
 }
 
-// Current benchmark: 200000 ns/op (1500000 ns/op before []rune)
+// Current benchmark: 4400000 ns/op (1500000 ns/op before []rune)
 func BenchmarkBufferResetModified(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	b.ResetTimer()
@@ -484,7 +484,7 @@ func BenchmarkBufferResetModified(b *testing.B) {
 	}
 }
 
-// Current benchmark: 120 ms/op
+// Current benchmark: 130 ms/op
 func BenchmarkBufferSetSize(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -498,7 +498,7 @@ func BenchmarkBufferSetSize(b *testing.B) {
 	}
 }
 
-// Current benchmark: 120 ms/op
+// Current benchmark: 130 ms/op
 func BenchmarkBufferSetSyntax(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
