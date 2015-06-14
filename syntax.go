@@ -34,15 +34,26 @@ func (rules syntax) split(s string) <-chan Fragment {
 		if s == "" {
 			c <- Fragment{s, noneTag}
 		}
+
+		minLocs := make(map[Rule][]int)
+
 		for s != "" {
 			// Find the first matching rule
 			var minLoc []int
 			var minRule Rule
 			for _, rule := range rules {
-				loc := rule.re.FindStringIndex(s)
-				if loc != nil && (minLoc == nil || loc[0] < minLoc[0]) {
-					minLoc = loc
-					minRule = rule
+				var loc []int
+				if v := minLocs[rule]; v != nil {
+					loc = v
+				} else {
+					loc = rule.re.FindStringIndex(s)
+				}
+				if loc != nil {
+					minLocs[rule] = loc
+					if minLoc == nil || loc[0] < minLoc[0] {
+						minLoc = loc
+						minRule = rule
+					}
 				}
 			}
 			// Send fragments
@@ -55,6 +66,14 @@ func (rules syntax) split(s string) <-chan Fragment {
 				}
 				c <- Fragment{s[minLoc[0]:minLoc[1]], minRule.tag}
 				s = s[minLoc[1]:]
+				for k, v := range minLocs {
+					if v[0] < minLoc[1] {
+						delete(minLocs, k)
+					} else {
+						v[0] -= minLoc[1]
+						v[1] -= minLoc[1]
+					}
+				}
 			}
 		}
 		close(c)
