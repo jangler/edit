@@ -452,10 +452,13 @@ func (b *Buffer) Insert(index Index, text string) {
 
 // Mark sets a mark with ID id at index. The mark's position is automatically
 // updated when the buffer contents are modified. If a mark with ID id already
-// exists, its position is updated.
-func (b *Buffer) Mark(index Index, id int) {
+// exists, its position is updated. Multiple IDs can be specified to set
+// multiple marks at the same time.
+func (b *Buffer) Mark(index Index, id... int) {
 	<-b.unlock
-	b.marks[id] = b.clip(index)
+	for _, id := range id {
+		b.marks[id] = b.clip(index)
+	}
 	b.unlock <- 1
 }
 
