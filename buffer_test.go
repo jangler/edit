@@ -393,7 +393,7 @@ func BenchmarkBufferCoordsFromIndex(b *testing.B) {
 	}
 }
 
-// Current benchmark: 86000 ns/op
+// Current benchmark: 130000 ns/op (86000 ns/op before []rune)
 func BenchmarkBufferDelete(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	indexes := randIndexes(buf, b.N, benchOpLines)
@@ -411,7 +411,7 @@ func BenchmarkBufferDelete(b *testing.B) {
 	}
 }
 
-// Current benchmark: 31000 ns/op
+// Current benchmark: 29000 ns/op
 func BenchmarkBufferDisplayLines(b *testing.B) {
 	buf := NewBuffer()
 	for i := 0; i < benchBufLines/8; i++ {
@@ -422,7 +422,7 @@ func BenchmarkBufferDisplayLines(b *testing.B) {
 	}
 }
 
-// Current benchmark: 21000 ns/op
+// Current benchmark: 43000 ns/op (21000 ns/op before []rune)
 func BenchmarkBufferGet(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	indexes := randIndexes(buf, b.N, benchOpLines)
@@ -434,7 +434,7 @@ func BenchmarkBufferGet(b *testing.B) {
 	}
 }
 
-// Current benchmark: 45000 ns/op
+// Current benchmark: 47000 ns/op
 func BenchmarkBufferIndexFromCoords(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	coords := make([][]int, b.N)
@@ -448,7 +448,7 @@ func BenchmarkBufferIndexFromCoords(b *testing.B) {
 	}
 }
 
-// Current benchmark: 200000 ns/op
+// Current benchmark: 270000 ns/op (200000 ns/op before []rune)
 func BenchmarkBufferInsert(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	indexes := randIndexes(buf, b.N, benchOpLines)
@@ -466,7 +466,7 @@ func BenchmarkBufferInsert(b *testing.B) {
 	}
 }
 
-// Current benchmark: 1500000 ns/op
+// Current benchmark: 4200000 ns/op (1500000 ns/op before []rune)
 func BenchmarkBufferModified(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	b.ResetTimer()
@@ -475,7 +475,7 @@ func BenchmarkBufferModified(b *testing.B) {
 	}
 }
 
-// Current benchmark: 1500000 ns/op
+// Current benchmark: 200000 ns/op (1500000 ns/op before []rune)
 func BenchmarkBufferResetModified(b *testing.B) {
 	buf := randBuffer(benchBufLines)
 	b.ResetTimer()
@@ -484,7 +484,7 @@ func BenchmarkBufferResetModified(b *testing.B) {
 	}
 }
 
-// Current benchmark: 110 ms/op
+// Current benchmark: 120 ms/op
 func BenchmarkBufferSetSize(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -498,7 +498,7 @@ func BenchmarkBufferSetSize(b *testing.B) {
 	}
 }
 
-// Current benchmark: 110 ms/op
+// Current benchmark: 120 ms/op
 func BenchmarkBufferSetSyntax(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -511,7 +511,7 @@ func BenchmarkBufferSetSyntax(b *testing.B) {
 	}
 }
 
-// Current benchmark: 110 ms/op
+// Current benchmark: 120 ms/op
 func BenchmarkBufferSetTabWidth(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
