@@ -111,8 +111,10 @@ func (b *Buffer) redisplay(begin, end int) {
 		// Insert new display lines
 		prev := first
 		dLine, col := fragList{list.New(), false}, 0
-		for frag := range b.syntax.split(string(elem.Value.(lineInfo).text)) {
-			text := expand([]rune(frag.Text), b.tabWidth)
+		fragments := b.syntax.split(string(expand(elem.Value.(lineInfo).text,
+			b.tabWidth)))
+		for frag := range fragments {
+			text := []rune(frag.Text)
 			for {
 				if len(text)+col <= b.cols {
 					dLine.PushBack(Fragment{string(text), frag.Tag})
@@ -154,7 +156,7 @@ func (b *Buffer) CoordsFromIndex(index Index) (col, row int) {
 	for e := b.dLines.Front(); e != line.disp; e = e.Next() {
 		row++
 	}
-	col = len(expand(line.text[:index.Char], b.tabWidth))
+	col = columns(line.text[:index.Char], b.tabWidth)
 	row += col / b.cols
 	col %= b.cols
 	b.unlock <- 1
@@ -454,7 +456,7 @@ func (b *Buffer) Insert(index Index, text string) {
 // updated when the buffer contents are modified. If a mark with ID id already
 // exists, its position is updated. Multiple IDs can be specified to set
 // multiple marks at the same time.
-func (b *Buffer) Mark(index Index, id... int) {
+func (b *Buffer) Mark(index Index, id ...int) {
 	<-b.unlock
 	for _, id := range id {
 		b.marks[id] = b.clip(index)
