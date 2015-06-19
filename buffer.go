@@ -97,6 +97,45 @@ func (b *Buffer) clip(index Index) Index {
 	return index
 }
 
+func (b *Buffer) insertFragment(frag Fragment, dLine fragList, col int,
+	prev *list.Element) (fragList, int, *list.Element) {
+	text := []rune(frag.Text)
+	for {
+		if len(text)+col <= b.cols {
+			if dLine.Len() > 0 &&
+				frag.Tag == dLine.Back().Value.(Fragment).Tag {
+				val := dLine.Back().Value.(Fragment)
+				val.Text += string(text)
+				dLine.Back().Value = val
+			} else {
+				dLine.PushBack(Fragment{string(text), frag.Tag})
+			}
+			col += len(text)
+			text = text[:0]
+		} else {
+			if col < b.cols {
+				if dLine.Len() > 0 &&
+					frag.Tag == dLine.Back().Value.(Fragment).Tag {
+					val := dLine.Back().Value.(Fragment)
+					val.Text += string(text[:b.cols-col])
+					dLine.Back().Value = val
+				} else {
+					dLine.PushBack(Fragment{string(text[:b.cols-col]),
+						frag.Tag})
+				}
+			}
+			prev = b.dLines.InsertAfter(dLine, prev)
+			dLine = fragList{list.New(), true}
+			text = text[b.cols-col:]
+			col = 0
+		}
+		if len(text) == 0 {
+			break
+		}
+	}
+	return dLine, col, prev
+}
+
 func (b *Buffer) redisplay(begin, end int) {
 	beginElem, endElem := getElem(b.lines, begin), getElem(b.lines, end)
 	for elem := beginElem; elem != nil; elem = elem.Next() {
@@ -114,26 +153,7 @@ func (b *Buffer) redisplay(begin, end int) {
 		fragments := b.syntax.split(string(expand(elem.Value.(lineInfo).text,
 			b.tabWidth)))
 		for frag := range fragments {
-			text := []rune(frag.Text)
-			for {
-				if len(text)+col <= b.cols {
-					dLine.PushBack(Fragment{string(text), frag.Tag})
-					col += len(text)
-					text = text[:0]
-				} else {
-					if col < b.cols {
-						dLine.PushBack(Fragment{string(text[:b.cols-col]),
-							frag.Tag})
-					}
-					prev = b.dLines.InsertAfter(dLine, prev)
-					dLine = fragList{list.New(), true}
-					text = text[b.cols-col:]
-					col = 0
-				}
-				if len(text) == 0 {
-					break
-				}
-			}
+			dLine, col, prev = b.insertFragment(frag, dLine, col, prev)
 		}
 		b.dLines.InsertAfter(dLine, prev)
 		elem.Value = lineInfo{elem.Value.(lineInfo).text, first.Next()}
@@ -143,6 +163,33 @@ func (b *Buffer) redisplay(begin, end int) {
 		if elem == endElem {
 			break
 		}
+	}
+}
+
+// resize is like redisplay, except it doesn't re-highlight the text.
+func (b *Buffer) resize() {
+	for elem := b.lines.Front(); elem != nil; elem = elem.Next() {
+		// consolidate display lines into a single fragList
+		first := elem.Value.(lineInfo).disp
+		fragments := first.Value.(fragList)
+		disp := first.Next()
+		for disp != nil && disp.Value.(fragList).cont {
+			next := disp.Next()
+			fragments.PushBackList(disp.Value.(fragList).List)
+			b.dLines.Remove(disp)
+			disp = next
+		}
+		// ... then un-consolidate the fragList back into display lines
+		prev := first
+		dLine, col := fragList{list.New(), false}, 0
+		for e := fragments.Front(); e != nil; e = e.Next() {
+			frag := e.Value.(Fragment)
+			dLine, col, prev = b.insertFragment(frag, dLine, col, prev)
+		}
+		b.dLines.InsertAfter(dLine, prev)
+		elem.Value = lineInfo{elem.Value.(lineInfo).text, first.Next()}
+		// remove leftover display line
+		b.dLines.Remove(first)
 	}
 }
 
@@ -530,15 +577,19 @@ func (b *Buffer) ResetUndo() {
 	b.unlock <- 1
 }
 
-// Scroll scrolls the buffer's display down by delta lines.
-func (b *Buffer) Scroll(delta int) {
-	<-b.unlock
+func (b *Buffer) scrollWithoutLock(delta int) {
 	b.scroll += delta
 	if b.scroll < 0 || b.dLines.Len() < b.rows {
 		b.scroll = 0
 	} else if b.scroll+b.rows > b.dLines.Len() {
 		b.scroll = b.dLines.Len() - b.rows
 	}
+}
+
+// Scroll scrolls the buffer's display down by delta lines.
+func (b *Buffer) Scroll(delta int) {
+	<-b.unlock
+	b.scrollWithoutLock(delta)
 	b.unlock <- 1
 }
 
@@ -577,12 +628,8 @@ func (b *Buffer) SetSize(cols, rows int) {
 	if b.rows < 0 {
 		b.rows = 0
 	}
-	// TODO: Make sure scroll isn't out of bounds now.
-	// TODO:
-	// This also needs to recompute display lines, but it doesn't need to
-	// re-split them into fragments, so it might be faster to use a different
-	// algorithm than the one used for SetSyntax.
-	b.redisplay(1, b.lines.Len())
+	b.resize()
+	b.scrollWithoutLock(0) // make sure scroll isn't out of bounds
 	b.unlock <- 1
 }
 
@@ -598,6 +645,7 @@ func (b *Buffer) SetSyntax(rules []Rule) {
 	}
 	b.syntax = b.syntax[:len(rules)]
 	b.redisplay(1, b.lines.Len())
+	b.scrollWithoutLock(0) // make sure scroll isn't out of bounds
 	b.unlock <- 1
 }
 
@@ -605,8 +653,8 @@ func (b *Buffer) SetSyntax(rules []Rule) {
 func (b *Buffer) SetTabWidth(cols int) {
 	<-b.unlock
 	b.tabWidth = cols
-	// TODO: Same as SetSize.
-	b.redisplay(1, b.lines.Len())
+	b.resize()
+	b.scrollWithoutLock(0) // make sure scroll isn't out of bounds
 	b.unlock <- 1
 }
 

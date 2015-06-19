@@ -93,6 +93,8 @@ func TestBufferDisplay(t *testing.T) {
 	b.SetTabWidth(4)
 	b.Insert(Index{1, 0},
 		"package main\nfunc main() {\n\tprintln(\"hi\")\n}\n")
+	b.SetSize(3, 3)
+	b.SetSize(8, 9)
 	dLines := make([]*list.List, 10)
 	for i := range dLines {
 		dLines[i] = list.New()
@@ -484,7 +486,7 @@ func BenchmarkBufferResetModified(b *testing.B) {
 	}
 }
 
-// Current benchmark: 130 ms/op
+// Current benchmark: 8700000 ns/op
 func BenchmarkBufferSetSize(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -498,7 +500,7 @@ func BenchmarkBufferSetSize(b *testing.B) {
 	}
 }
 
-// Current benchmark: 130 ms/op
+// Current benchmark: 120 ms/op
 func BenchmarkBufferSetSyntax(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -511,7 +513,7 @@ func BenchmarkBufferSetSyntax(b *testing.B) {
 	}
 }
 
-// Current benchmark: 120 ms/op
+// Current benchmark: 7600000 ns/op
 func BenchmarkBufferSetTabWidth(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
