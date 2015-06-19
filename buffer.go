@@ -652,9 +652,12 @@ func (b *Buffer) SetSyntax(rules []Rule) {
 // SetTabWidth sets the tab width of the buffer to cols.
 func (b *Buffer) SetTabWidth(cols int) {
 	<-b.unlock
+	prevWidth := b.tabWidth
 	b.tabWidth = cols
-	b.redisplay(1, b.lines.Len())
-	b.scrollWithoutLock(0) // make sure scroll isn't out of bounds
+	if prevWidth != cols {
+		b.redisplay(1, b.lines.Len())
+		b.scrollWithoutLock(0) // make sure scroll isn't out of bounds
+	}
 	b.unlock <- 1
 }
 
