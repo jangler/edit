@@ -653,7 +653,7 @@ func (b *Buffer) SetSyntax(rules []Rule) {
 func (b *Buffer) SetTabWidth(cols int) {
 	<-b.unlock
 	b.tabWidth = cols
-	b.resize()
+	b.redisplay(1, b.lines.Len())
 	b.scrollWithoutLock(0) // make sure scroll isn't out of bounds
 	b.unlock <- 1
 }

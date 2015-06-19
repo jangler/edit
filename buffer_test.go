@@ -513,7 +513,7 @@ func BenchmarkBufferSetSyntax(b *testing.B) {
 	}
 }
 
-// Current benchmark: 7600000 ns/op
+// Current benchmark: 120 ms/op
 func BenchmarkBufferSetTabWidth(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
